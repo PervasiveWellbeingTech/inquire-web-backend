@@ -6,7 +6,8 @@ import datetime
 import logging
 logging.basicConfig(
     format="%(asctime)s %(levelname)-8s %(name)-18s: %(message)s",
-    filename="inquire_%s.log" % datetime.datetime.now().isoformat()
+    filename="inquire_%s.log" % datetime.datetime.now().isoformat(),
+    level=logging.DEBUG
 )
 
 log = logging.getLogger(__name__)
