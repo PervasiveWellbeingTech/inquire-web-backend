@@ -24,6 +24,7 @@ if __name__ == "__main__":
     # >>>>>>> 18382fce5853a1473437bd9f26e5223c29c65d67:backend-server-python/start_server.py
     static_app = Flask(__name__.split(".")[0] + "_static")
     static_app.debug = True
+    app.debug = True
 
     # This is for local debugging and development, so we need to serve static files
     @static_app.route("/", defaults={'path': 'index.html'})
@@ -40,7 +41,7 @@ if __name__ == "__main__":
     local_app.config = {}
     local_app.debug = True
     # <<<<<<< HEAD:backend-server-python/start_server_local.py
-    run_simple('0.0.0.0', 8080, app)
+    run_simple('0.0.0.0', 80, app)
     #  =======
     #
     #      return local_app
