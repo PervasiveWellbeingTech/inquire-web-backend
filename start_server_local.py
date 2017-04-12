@@ -1,3 +1,4 @@
+import datetime
 import logging
 logging.basicConfig(
     format="%(asctime)s %(levelname)-8s %(name)-18s: %(message)s",
@@ -11,7 +12,7 @@ from werkzeug.serving import run_simple
 from inquire_web.blueprints.search import init_search_blueprint
 from flask import Flask, send_from_directory
 from werkzeug.wsgi import DispatcherMiddleware
-import datetime
+
 
 
 if __name__ == "__main__":
