@@ -2,9 +2,10 @@ import datetime
 import logging
 logging.basicConfig(
     format="%(asctime)s %(levelname)-8s %(name)-18s: %(message)s",
-    filename="inquire_%s.log" % datetime.datetime.now().isoformat(),
     level=logging.DEBUG
 )
+rootlog = logging.getLogger()
+rootlog.addHandler(logging.FileHandler(filename="inquire_%s.log" % datetime.datetime.now().isoformat()))
 
 log = logging.getLogger(__name__)
 
