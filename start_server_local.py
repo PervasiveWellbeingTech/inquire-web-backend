@@ -1,8 +1,3 @@
-from werkzeug.serving import run_simple
-from inquire_web.blueprints.search import init_search_blueprint
-from flask import Flask, send_from_directory
-from werkzeug.wsgi import DispatcherMiddleware
-import datetime
 import logging
 logging.basicConfig(
     format="%(asctime)s %(levelname)-8s %(name)-18s: %(message)s",
@@ -11,6 +6,13 @@ logging.basicConfig(
 )
 
 log = logging.getLogger(__name__)
+
+from werkzeug.serving import run_simple
+from inquire_web.blueprints.search import init_search_blueprint
+from flask import Flask, send_from_directory
+from werkzeug.wsgi import DispatcherMiddleware
+import datetime
+
 
 if __name__ == "__main__":
     init_search_blueprint("localhost")  # TODO get actual search API path here, maybe configurable
@@ -42,6 +44,7 @@ if __name__ == "__main__":
     local_app.config = {}
     local_app.debug = True
     # <<<<<<< HEAD:backend-server-python/start_server_local.py
+    log.debug("Running server..")
     run_simple('0.0.0.0', 80, app)
     #  =======
     #

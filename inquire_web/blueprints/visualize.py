@@ -9,14 +9,16 @@ from community import community_louvain
 from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 from collections import Counter
 import operator
+import logging
+log = logging.getLogger(__name__)
 
 vectorizer = CountVectorizer(min_df=1, stop_words='english')
 analyze = vectorizer.build_analyzer()
 
 
-print("loading spacy..")
+log.debug("loading spacy..")
 nlp = spacy.load("en")
-print("done.")
+log.debug("done.")
 viz_blueprint = Blueprint("visualize", __name__, url_prefix="/visualize")
 
 
