@@ -17,6 +17,6 @@ def init_query_blueprint(api_path):
 @query_blueprint.route("/default", methods=["POST"])
 def execute_search():
     log.debug("Forwarding search query to %s" % query_api_path)
-    query_data = request.json()["query"]
+    query_data = request.json["query"]
     new_query = query_api_path + "query"
     return requests.get(new_query, payload=query_data).json()
