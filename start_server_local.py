@@ -15,7 +15,6 @@ from flask import Flask, send_from_directory
 from werkzeug.wsgi import DispatcherMiddleware
 
 
-
 if __name__ == "__main__":
     init_search_blueprint("localhost")  # TODO get actual search API path here, maybe configurable
     from inquire_web.server import app
@@ -47,7 +46,7 @@ if __name__ == "__main__":
     local_app.debug = True
     # <<<<<<< HEAD:backend-server-python/start_server_local.py
     log.debug("Running server..")
-    run_simple('0.0.0.0', 80, app)
+    run_simple('0.0.0.0', 80, local_app)
     #  =======
     #
     #      return local_app
