@@ -16,10 +16,10 @@ def build_app():
 
     log.debug("Setting up blueprints..")
     from inquire_web.blueprints.visualize import viz_blueprint
-    from inquire_web.blueprints.search import search_blueprint
+    from inquire_web.blueprints.query import query_blueprint
 
     app.register_blueprint(viz_blueprint)
-    app.register_blueprint(search_blueprint)
+    app.register_blueprint(query_blueprint)
 
     return app
 

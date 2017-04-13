@@ -100,7 +100,7 @@ def get_epsilon_clusters(H, results):
 @viz_blueprint.route("/users", methods=["POST"])
 def get_users():
     contributors = request.get_json()
-    results = contributors["results"]
+    results = contributors["results"]  # TODO let's not use pandas here
     contributors = pd.Series(results).value_counts()[:20]
     lst = []
     print(contributors)
