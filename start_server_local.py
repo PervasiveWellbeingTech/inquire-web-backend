@@ -16,7 +16,7 @@ from werkzeug.wsgi import DispatcherMiddleware
 
 
 if __name__ == "__main__":
-    init_query_blueprint("http://commuter.stanford.edu/")  # TODO get actual search API path here, maybe configurable
+    init_query_blueprint("http://commuter.stanford.edu:9000/")  # TODO get actual search API path here, maybe configurable
     from inquire_web.server import app
 
     # <<<<<<< HEAD:backend-server-python/start_server_local.py
