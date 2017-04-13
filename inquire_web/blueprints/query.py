@@ -38,7 +38,7 @@ def execute_user_overlap_search():
         return users_sents
 
     all_user_sents = [get_user_sents(query_data) for query_data in queries]
-    all_user_names = [d.values() for d in all_user_sents]
+    all_user_names = [d.keys() for d in all_user_sents]
     overlapping_names = list(set(all_user_names[0]).intersection(*all_user_names))
     result = {
         "users": overlapping_names,
