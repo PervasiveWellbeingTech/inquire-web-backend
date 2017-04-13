@@ -19,4 +19,4 @@ def execute_search():
     log.debug("Forwarding search query to %s" % query_api_path)
     query_data = request.json["query"]
     new_query = query_api_path + "query"
-    return requests.get(new_query, params=query_data).json()
+    return requests.get(new_query, params=query_data).json
