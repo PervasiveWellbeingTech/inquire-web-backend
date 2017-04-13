@@ -31,7 +31,7 @@ def execute_user_overlap_search():
     def get_user_sents(query_data):
         res = run_semantic_search(query_data)
         users_sents = defaultdict(list)
-        for url, sent, relevance in zip(res["url"], res["query_results"], res["cosine_similarity"]):
+        for url, sent, relevance in zip(res["url"][0], res["query_results"][0], res["cosine_similarity"]):
             user = url.split(".")[0][len("http://"):]
             users_sents[user].append((sent, relevance))  # TODO relevance is not re-weighted at any point currently
 
