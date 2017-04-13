@@ -33,7 +33,8 @@ def execute_user_overlap_search():
         users_sents = defaultdict(list)
         for url, sent, relevance in zip(res["url"][0], res["query_results"][0], res["cosine_similarity"]):
             user = url.split(".")[0][len("http://"):]
-            users_sents[user].append((sent, relevance))  # TODO relevance is not re-weighted at any point currently
+            # TODO relevance is not re-weighted at any point currently
+            users_sents[user].append((query_data["name"], sent, relevance))
 
         return users_sents
 
