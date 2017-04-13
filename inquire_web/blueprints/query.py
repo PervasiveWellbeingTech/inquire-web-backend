@@ -49,7 +49,7 @@ def execute_user_overlap_search():
     overlapping_names = list(set(all_user_names[0]).intersection(*all_user_names))
     result = {
         "users": overlapping_names,
-        "sents": [all_user_sents[user] for user in overlapping_names]
+        "sents": [user_sents_combined[user] for user in overlapping_names]
     }
     return jsonify(result)
 
