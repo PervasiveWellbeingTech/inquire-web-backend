@@ -1,5 +1,5 @@
 from __future__ import print_function
-from flask import Blueprint, request
+from flask import Blueprint, request, jsonify
 import requests
 import logging
 log = logging.getLogger(__name__)
@@ -19,4 +19,4 @@ def execute_search():
     log.debug("Forwarding search query to %s" % query_api_path)
     query_data = request.json["query"]
     new_query = query_api_path + "query"
-    return requests.get(new_query, params=query_data).json
+    return jsonify(requests.get(new_query, params=query_data).json)
