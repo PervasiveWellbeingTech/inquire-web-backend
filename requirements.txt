@@ -6,3 +6,5 @@ spacy
 networkx
 pandas
 git+https://github.com/taynaud/python-louvain.git
+sqlite3
+datetime

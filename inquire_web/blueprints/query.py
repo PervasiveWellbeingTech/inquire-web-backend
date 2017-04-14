@@ -1,6 +1,8 @@
 from __future__ import print_function
 from flask import Blueprint, request, jsonify
 from collections import defaultdict
+import sqlite3
+import datetime
 import requests
 import logging
 log = logging.getLogger(__name__)
@@ -8,6 +10,14 @@ log = logging.getLogger(__name__)
 query_blueprint = Blueprint("query", __name__, url_prefix="/query")
 
 query_api_path = None
+
+
+db_file = 'log_db.sqlite'
+conn = sqlite3.connect(db_file)
+c = conn.cursor()
+
+parms = ("'%s'," * 6)[:-1]
+sql = "INSERT INTO query_log VALUES (%s)" % (parms)
 
 
 def init_query_blueprint(api_path):
@@ -19,7 +29,17 @@ def init_query_blueprint(api_path):
 def execute_search():
     log.debug("Forwarding search query to %s" % query_api_path)
     query_data = request.json["query"]
-    # {minWords: "5", maxWords: "30", filter: "", top: "100", data: "here's some text"}
+    # {minWords: "5", maxWords: "30", filter: "", topN: "100", data: "here's some text"}
+
+    # Save the metadata into the database
+    current_date = str(datetime.datetime.now())
+
+    # sample_query = (current_date, "test query", 0, 10, "", 100)
+    row = (current_date, query_data['data'], query_data['minWords'], query_data['maxWords'], query_data['topN'])
+    c.execute(sql % row)
+
+    print('Logged info to DB!')
+    # query the scala backend
     res = run_semantic_search(query_data)
     return jsonify(res)
 

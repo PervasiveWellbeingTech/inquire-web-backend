@@ -46,7 +46,7 @@ if __name__ == "__main__":
     local_app.debug = True
     # <<<<<<< HEAD:backend-server-python/start_server_local.py
     log.debug("Running server..")
-    run_simple('0.0.0.0', 80, local_app)
+    run_simple('0.0.0.0', 8000, local_app)
     #  =======
     #
     #      return local_app
