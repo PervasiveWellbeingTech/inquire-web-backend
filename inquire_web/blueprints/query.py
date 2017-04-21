@@ -3,21 +3,34 @@ from flask import Blueprint, request, jsonify
 from collections import defaultdict
 import requests
 import logging
+from atomicfile import AtomicFile
+
+
 log = logging.getLogger(__name__)
 
 query_blueprint = Blueprint("query", __name__, url_prefix="/query")
 
-query_api_path = None
+query_api_paths = None
+current_path = 0
 
 
-def init_query_blueprint(api_path):
-    global query_api_path
-    query_api_path = api_path
+def init_query_blueprint(api_paths):
+    global query_api_paths
+    query_api_paths = api_paths
+
+
+def select_next_api_path():  # TODO use DB to make this atomic across processes
+    global current_path, query_api_paths
+    with AtomicFile("selected_backend.txt", "w") as f:
+        with open("selected_backend.txt", "r") as rf:
+            current_path = int(rf.read().strip())
+            log.debug("Read current_path = %s from file" % current_path)
+            f.write("%s" % ((current_path + 1) % len(query_api_paths)))
+    return query_api_paths[current_path]
 
 
 @query_blueprint.route("/default", methods=["POST"])
 def execute_search():
-    log.debug("Forwarding search query to %s" % query_api_path)
     query_data = request.json["query"]
     # {minWords: "5", maxWords: "30", filter: "", top: "100", data: "here's some text"}
     res = run_semantic_search(query_data)
@@ -56,7 +69,9 @@ def execute_user_overlap_search():
 
 
 def run_semantic_search(query_data):
-    new_query = query_api_path + "query"
+    api_path = select_next_api_path()
+    log.debug("Forwarding search query to %s" % api_path)
+    new_query = api_path + "query"
     res = requests.get(new_query, params=query_data).json()
     log.debug("returning query results!")
     return res
