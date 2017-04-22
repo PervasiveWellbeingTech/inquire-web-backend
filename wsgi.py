@@ -1,5 +1,5 @@
 __author__ = 'dowling'
-from start_server_local import app as application
+from inquire_web.server import app
 from werkzeug.wsgi import DispatcherMiddleware
 
 
@@ -8,7 +8,7 @@ def placeholder(env, resp):
     return [b'Hello WSGI World']
 
 # TODO not sure if we need /api prefix
-application = DispatcherMiddleware(placeholder, {"/api": application})
+application = DispatcherMiddleware(placeholder, {"/api": app})
 
 if __name__ == "__main__":
     application.run()
