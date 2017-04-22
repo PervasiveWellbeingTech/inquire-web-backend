@@ -1,4 +1,14 @@
 __author__ = 'dowling'
+import datetime
+import logging
+logging.basicConfig(
+    format="%(asctime)s %(levelname)-8s %(name)-18s: %(message)s",
+    level=logging.DEBUG
+)
+rootlog = logging.getLogger()
+rootlog.addHandler(logging.FileHandler(filename="inquire_%s.log" % datetime.datetime.now().isoformat()))
+
+log = logging.getLogger(__name__)
 from inquire_web.server import app
 from inquire_web.blueprints.query import init_query_blueprint
 from werkzeug.wsgi import DispatcherMiddleware
