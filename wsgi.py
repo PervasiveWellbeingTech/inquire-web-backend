@@ -17,6 +17,7 @@ with open("backend_servers.txt", "r") as inf:
     servers = [line.strip() for line in inf.readlines() if line.strip()]
     init_query_blueprint(servers)
 
+
 def placeholder(env, resp):
     resp(b'200 OK', [(b'Content-Type', b'text/plain')])
     return [b'Hello WSGI World']
