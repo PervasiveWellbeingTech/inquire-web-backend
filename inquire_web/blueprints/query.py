@@ -19,7 +19,7 @@ def init_query_blueprint(api_paths):
 
 def select_next_api_path():  # TODO this is technically not atomic
     global query_api_paths, current_path
-    with open("selected_backend.txt", "a+") as f:
+    with open("selected_backend.txt", "r+") as f:
         current_path = int(f.read().strip())
         f.seek(0)
         log.debug("Read current_path = %s from file" % current_path)
