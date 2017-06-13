@@ -1,0 +1,328 @@
+import java.sql.{Connection, DriverManager, ResultSet}
+import collection.mutable.{ HashMap, MultiMap, Set, ListBuffer }
+
+Mat.useCache = true
+Mat.useGPUcache = true
+:silent
+val dir = "/home/data/livejournal/indexing/"
+val mdir = "/home/data/livejournal/preds_newtrainfinalfull/"
+
+val sentsOS1 = new SFileSource.Options
+val sentsOS2 = new SFileSource.Options
+sentsOS1.fnames = List(
+    //FileSource.simpleEnum("/home/data/livejournal/srcdst/src%04d.smat.lz4",1,0) // sequences
+    FileSource.simpleEnum("/home/data/livejournal/sentences2/data%d_sent.smat.lz4",1,0) // sequences
+)
+sentsOS2.fnames = List(
+    //FileSource.simpleEnum("/home/data/livejournal/srcdst/data%04d.smat.lz4",1,0) // bag of words
+    FileSource.simpleEnum("/home/data/livejournal/sentences2/data%d.smat.lz4",1,0) // bag of words
+)
+
+val oS = new FileSource.Options
+//val textSample = loadSMat("/data/livejournal/srcdst/src%4d.smat.lz4")
+oS.fnames = List(
+    //FileSource.simpleEnum("/home/data/livejournal/srcdst/data%d.imat", 1, 0), // metadata
+    FileSource.simpleEnum("/home/data/livejournal/sentences2/data%d.imat", 1, 0), // metadata
+
+    //FileSource.simpleEnum("/home/data/livejournal/sentences2/data%d_usernames.imat.lz4 "),
+    //FileSource.simpleEnum("/home/data/livejournal/sentences2/data%d_usernames.sbmat.lz4",1,0)
+    //FileSource.simpleEnum("/home/data/livejournal/srcdst/data%d_usernamest.imat.lz4", 1, 0),  // userids
+    FileSource.simpleEnum("/home/data/livejournal/sentences2/data%d_usernamest.imat.lz4")  // userids
+    //FileSource.simpleEnum("/home/data/livejournal/preds/pred%04d.fmat.lz4", 1, 0)  // LSTM vectors
+
+
+
+    //FileSource.simpleEnum("/home/data/livejournal/sentences2/data%d.smat.lz4",1,0)
+    //FileSource.simpleEnum("/data/livejournal/srcdst/src%04d.smat.lz4",1,0),
+    //FileSource.simpleEnum("/data/livejournal/srcdst/dst%04d.smat.lz4",1,0)
+)
+val batchSize = 100000
+val sqlMainBatchSize = 10000
+
+val pct = 1.0
+oS.batchSize = batchSize
+oS.nend = (1131 * pct).toInt
+val ds = new FileSource(oS)
+ds.init
+
+sentsOS1.batchSize = batchSize
+sentsOS1.nend = (1131 * pct).toInt
+sentsOS1.eltsPerSample = 500
+val sds1 = new SFileSource(sentsOS1)
+sds1.init
+
+sentsOS2.batchSize = batchSize
+sentsOS2.nend = (1131 * pct).toInt
+sentsOS2.eltsPerSample = 500
+val sds2 = new SFileSource(sentsOS2)
+sds2.init
+
+var dic = loadSBMat("/home/data/livejournal/sentences2/masterDict.sbmat");
+val dictionary = Dict(dic);
+
+var mooddic = loadSBMat("/home/data/livejournal/moods_dict.sbmat.lz4");
+val mood_dictionary = Dict(mooddic);
+
+var usersdic = loadSBMat("/home/data/livejournal/sentences2/users_dict_full_values.sbmat.lz4");
+val users_dictionary = Dict(usersdic);
+
+var w2v_t = loadFMat("/home/data/livejournal/sentences2/googleEmbeddings.fmat").t
+
+var count = 0
+
+classOf[org.postgresql.Driver]
+val conn_str = "jdbc:postgresql://localhost:5432/inquire?user=postgres&password=12344321"
+val conn = DriverManager.getConnection(conn_str)
+
+val userSQL = "INSERT INTO users VALUES (?, ?, ?) ON CONFLICT DO NOTHING";
+val upstmt = conn.prepareStatement(userSQL);
+
+val dictSQL = "INSERT INTO word2id VALUES (?, ?)  ON CONFLICT DO NOTHING;";
+val dictstmt = conn.prepareStatement(dictSQL);
+
+val postSQL = "INSERT INTO posts VALUES (?,?,?,?) ON CONFLICT DO NOTHING;";
+val ppstmt = conn.prepareStatement(postSQL);
+
+val postSentSQL = "INSERT INTO post_sents VALUES (?,?,?) ON CONFLICT DO NOTHING;";
+val pspstmt = conn.prepareStatement(postSentSQL);
+
+val metahashtablesSQL = "INSERT INTO hashtables_meta VALUES (?, ?, ?);";
+val mhpstmt = conn.prepareStatement(metahashtablesSQL);
+
+val hashVectorSQL = "INSERT INTO hash_vectors VALUES (?, ?, ?);";
+val hvpstmt = conn.prepareStatement(hashVectorSQL);
+
+val hashSQL = "INSERT INTO hashes VALUES (?, ?, ?, ?)  ON CONFLICT DO NOTHING";
+val hpstmt = conn.prepareStatement(hashSQL);
+
+val w2vSQL = "INSERT INTO sents_word2vec VALUES (?, ?, ?)  ON CONFLICT DO NOTHING";
+val w2vstmt = conn.prepareStatement(w2vSQL);
+
+val lstmSQL = "INSERT INTO sents_lstm VALUES (?, ?, ?)  ON CONFLICT DO NOTHING";
+val lstmstmt = conn.prepareStatement(lstmSQL);
+
+val sqlBatchSize = 10000;
+
+// hash length, num tables for LSTM (256 dimensions)
+val lstm_hashtables = List((10, 3), (16, 3), (24, 2), (32, 1));
+val w2v_hashtables = List((10, 3), (16, 3), (24, 2), (32, 1));
+
+val powers = FMat(1, 200)
+for(i <- 0 until powers.ncols){
+    powers(i) = pow(2, i);
+}
+
+var totalNumHashTables = 0
+//var LSTMhashTablesMap = scala.collection.mutable.Map[Int, FMat]()
+var W2VhashTablesMap = scala.collection.mutable.Map[Int, FMat]()
+//lstm_hashtables foreach{kv =>
+//    try{
+//        mhpstmt.setInt(1, totalNumHashTables);
+//        mhpstmt.setString(2, "LSTM");
+//        mhpstmt.setInt(3, kv._1);
+//        mhpstmt.executeUpdate();
+//    }catch{ case e: Exception =>
+//        println(e.getMessage());
+//        e.printStackTrace();
+//    }
+//    // val mm = (rand(kv._2, 256) - 0.5)
+//    val mm = (bernrnd(0.5, kv._1, 256) * 2 - 1)
+//    LSTMhashTablesMap += (totalNumHashTables -> mm)
+//    (0 until kv._2) foreach {idx =>
+//        try{
+//            hvpstmt.setInt(1, totalNumHashTables);
+//            hvpstmt.setInt(2, idx);
+//            hvpstmt.setArray(3, conn.createArrayOf("decimal", mm(idx, ?).data map (i => i.asInstanceOf[Object])));
+//            hvpstmt.executeUpdate();
+//        }catch { case e: Exception =>
+//            println(e.getMessage());
+//            e.printStackTrace();
+//        }
+//    }
+//    totalNumHashTables += 1
+//}
+
+w2v_hashtables foreach{kv =>
+    (0 until kv._2) foreach {idx =>
+        val mm = (bernrnd(0.5, kv._1, 300) * 2 - 1)
+        W2VhashTablesMap += (totalNumHashTables -> mm)
+
+        mhpstmt.setInt(1, totalNumHashTables);
+        mhpstmt.setString(2, "W2V");
+        mhpstmt.setInt(3, kv._1);
+        mhpstmt.executeUpdate();
+        (0 until kv._1) foreach {dim_idx =>
+            hvpstmt.setInt(1, totalNumHashTables);
+            hvpstmt.setInt(2, dim_idx);
+            hvpstmt.setArray(3, conn.createArrayOf("decimal", mm(dim_idx, ?).data map (i => i.asInstanceOf[Object])));
+            hvpstmt.executeUpdate();
+        }
+        totalNumHashTables += 1
+    }
+
+}
+
+println("Load dict into Postgres..")
+(0 until dictionary.length) foreach {wordid =>
+    try{
+        dictstmt.setString(1, dictionary(wordid));
+        dictstmt.setInt(2, wordid);
+        dictstmt.addBatch();
+        if(wordid % sqlBatchSize == 0){
+            println("Insert " + wordid + "..")
+            dictstmt.executeBatch();
+        }
+    }catch{ case e: Exception =>
+        println(e.getMessage());
+        e.printStackTrace();
+    }
+
+}
+dictstmt.executeBatch();
+dictstmt.executeBatch();
+println("Done.");
+
+flip
+ds.reset
+sds1.reset
+sds2.reset
+
+var currentUser = "";
+var currentPostId = -1;
+var sentNum = 0;
+var totalProcessed = 0;
+while (ds.hasNext) {
+    count += 1
+    if (count % 1 == 0) {
+        println("%d sents finished. %.3fs passed, %.3f GPUmem left" format (totalProcessed, flop._2, GPUmem._1))
+    }
+    val d = ds.next;
+    val sd1 = sds1.next;
+    val sd2 = sds2.next;
+
+    val metaData = d(0).asInstanceOf[IMat];
+    val usersData = d(1).asInstanceOf[IMat];
+    // val sentVectorsLSTM = d(2).asInstanceOf[FMat];
+    // val bowData = d(3).asInstanceOf[IMat];
+
+    val seqData = sd1(0).asInstanceOf[SMat];
+    val bowData = sd2(0).asInstanceOf[SMat];
+
+    val sentVectorsW2V = FMat((w2v_t * bowData) / (bowData.sum(0) + 0.0000000001)); // avoid NaN's
+
+    val allHashes = IMat(sentVectorsW2V.ncols, totalNumHashTables);
+
+    (W2VhashTablesMap) foreach {case (i, mmW2V) =>
+        //println("mmW2V: " + mmW2V.nrows + ", " + mmW2V.ncols + " -- sv: " + sentVectorsW2V.nrows + ", " + sentVectorsW2V.ncols)
+        val dis = mmW2V * sentVectorsW2V;
+        val codes = IMat(FMat(dis>=0));
+        val pows = powers(0 until mmW2V.nrows);
+        var hashes = pows * codes;
+        //println("" + hashes.nrows + ", " + hashes.ncols + " -- " + allHashes.nrows + ", " + allHashes.ncols);
+        allHashes(?, i) = hashes.t
+    };
+
+    //(LSTMhashTablesMap) foreach {case (i, mmLSTM) =>
+    //    val dis = mmLSTM * sentVectorsLSTM;
+    //    val codes = IMat(FMat(dis>=0));
+    //    val pows = powers(0 until mmLSTM.nrows)
+    //    var hashes = pows * codes;
+    //    //println("" + hashes.nrows + ", " + hashes.ncols + " -- " + allHashes.nrows + ", " + allHashes.ncols);
+    //    allHashes(?, i) = hashes.t;
+    //};
+
+    if (!(metaData.ncols == seqData.ncols && metaData.ncols == usersData.ncols)){
+        println("meta: %d, seq: %s, users: %d" format (metaData.ncols,seqData.ncols,usersData.ncols));
+    }
+    totalProcessed += metaData.ncols;
+    (0 until metaData.ncols) foreach {i =>
+        val moodid = metaData(1, i);
+        val ditemid = metaData(2, i);
+        val timestamp = metaData(3, i);
+        val userId = usersData(i);
+        if (usersData(i)<users_dictionary.length && userId >= 0){
+            val user = users_dictionary(userId);
+            val mood = mood_dictionary(moodid);
+            val url = "http://" + user + ".livejournal.com/";
+            val sent = seqData(?, i).data.map((c => dictionary(Math.max(c.toInt - 1, 0)))).mkString(" ").reverse.dropWhile(cc => (cc == '.'|| cc == ' ')).reverse.trim
+            // val sent = seqData(?, i).data.reverse.map((c => dictionary(Math.max(c.toInt - 1, 0)))).mkString(" ").dropWhile(cc => (cc == '.'|| cc == ' ')).trim
+
+            if (user != currentUser){
+                // insert new user (if necessary)
+                upstmt.setInt(1, userId);
+                upstmt.setString(2, user);
+                upstmt.setString(3, url);
+                upstmt.addBatch();
+
+                currentUser = user
+            }
+
+            if (ditemid != currentPostId){
+                // insert new blog post
+                ppstmt.setInt(1, ditemid);
+                ppstmt.setInt(2, userId);
+                ppstmt.setInt(3, timestamp);
+                ppstmt.setInt(4, moodid);
+                ppstmt.addBatch();
+
+                currentPostId = ditemid
+                sentNum = 0
+            }
+
+            // insert actual sent
+            pspstmt.setInt(1, currentPostId);
+            pspstmt.setInt(2, sentNum);
+            //pspstmt.setInt(2, sent.hashCode);
+            pspstmt.setString(3, sent);
+            pspstmt.addBatch();
+
+            // insert vectors
+            w2vstmt.setInt(1, currentPostId);
+            w2vstmt.setInt(2, sentNum);
+            //w2vstmt.setInt(2, sent.hashCode);
+            val arrw2v = conn.createArrayOf("decimal", sentVectorsW2V(?, i).data map (i => i.asInstanceOf[Object]))
+            w2vstmt.setArray(3, arrw2v);
+            w2vstmt.addBatch();
+
+            //lstmstmt.setInt(1, currentPostId);
+            ////lstmstmt.setInt(2, sentNum);
+            //lstmstmt.setInt(2, sent.hashCode);
+            //val arrlstm = conn.createArrayOf("decimal", sentVectorsLSTM(?, i).data map (i => i.asInstanceOf[Object]))
+            //lstmstmt.setArray(3, arrlstm);
+            //lstmstmt.addBatch();
+
+            // insert sent hashes
+            (0 until totalNumHashTables) foreach {hashTableIdx =>
+                hpstmt.setInt(1, hashTableIdx);
+                hpstmt.setInt(2, currentPostId);
+                hpstmt.setInt(3, sentNum);
+                //hpstmt.setInt(3, sent.hashCode);
+                hpstmt.setInt(4, allHashes(i, hashTableIdx));
+                hpstmt.addBatch();
+            }
+            // println(user + " --- " + mood + " --- " + sent + " (" + url + ")");
+            sentNum += 1
+        }
+    }
+    println("Executing inserts..")
+    upstmt.executeBatch();
+    ppstmt.executeBatch();
+    pspstmt.executeBatch();
+    w2vstmt.executeBatch();
+    // lstmstmt.executeBatch();
+    hpstmt.executeBatch();
+    println("batch done");
+    //println("batch done, press enter..")
+    //scala.io.StdIn.readLine()
+
+}
+upstmt.executeBatch();
+ppstmt.executeBatch();
+pspstmt.executeBatch();
+w2vstmt.executeBatch();
+// lstmstmt.executeBatch();
+hpstmt.executeBatch();
+
+:silent
+flop
+GPUmem
