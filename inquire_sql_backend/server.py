@@ -41,7 +41,7 @@ def load_lsh_vectors():
         for bit in range(num_bits):
             cur2.execute('SELECT VECTOR FROM hash_vectors WHERE TABLE_ID=%s AND VECTOR_ID=%s;', (table_id, bit))
             for vector in cur2.fetchall():
-                lsh_tables[table_id].append(np.array(list(map(float, vector[0]))).reshape((300, )))
+                lsh_tables[int(table_id)].append(np.array(list(map(float, vector[0]))).reshape((300, )))
 
 
 def get_vector(string):
@@ -56,7 +56,7 @@ def get_vector(string):
 
 
 def calculate_hash(vector, table_id):
-    bits = [np.dot(vector, dim_vec) >= 0 for dim_vec in lsh_tables[table_id]]
+    bits = [np.dot(vector, dim_vec) >= 0 for dim_vec in lsh_tables[int(table_id)]]
     hash_ = sum([(2 ** i * int(bit)) for (i, bit) in enumerate(bits)])
     print("Bits: %s. Hash: %s" % (bits, hash_))
     return hash_
@@ -112,19 +112,24 @@ def perform_full_query(query_string, hashtable_ids, mode="and", filter_words=Non
     cands = []
     cand_vecs = []
 
+    if (min_words is not None) or (max_words is not None):
+        print("enforcing %s <= textlen <= %s" % (min_words, max_words))
+
     for key, count in counts.items():
         if mode == "and" and count != len(hashtable_ids):
             continue
 
         val = seen[key]
-        text = val[2]
+        text = val[0]
+
         if filter_words is not None:
             for filter_word in filter_words:
                 if filter_word in text:
                     continue
-        if min_words is not None or max_words is not None:
+
+        if (min_words is not None) or (max_words is not None):
             textlen = len(text.split())
-            if textlen < (min_words or 0) or textlen > (max_words or 99999):
+            if not (int(min_words or 0) <= textlen <= int(max_words or 99999)):
                 continue
 
         cands.append(list(key) + list(val[:-1]))
@@ -152,6 +157,13 @@ def query():
     print("args: %s" % request.args)
     min_words = request.args.get("minWords", None)
     max_words = request.args.get("maxWords", None)
+
+    hashtables = request.args.getlist("hashtables")
+    if len(hashtables) == 0:
+        hashtables = [1, 2]
+    print(hashtables)
+    mode = request.args.get("mode", "and")
+
     filter_words = request.args.get("filter", None)
     if filter_words:
         filter_words = [w.strip() for w in filter_words.split(",")]
@@ -159,8 +171,9 @@ def query():
     query_string = request.args.get("data")
 
     res = perform_full_query(
-        query_string, [3, 4],
-        mode="and",
+        query_string,
+        hashtable_ids=hashtables,
+        mode=mode,
         filter_words=filter_words,
         min_words=min_words,
         max_words=max_words
