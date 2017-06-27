@@ -30,8 +30,8 @@ oS.fnames = List(
     FileSource.simpleEnum("/home/data/livejournal/sentences2/data%d_usernamest.imat.lz4")  // userids
     //FileSource.simpleEnum("/home/data/livejournal/preds/pred%04d.fmat.lz4", 1, 0)  // LSTM vectors
 
-
-
+    
+    
     //FileSource.simpleEnum("/home/data/livejournal/sentences2/data%d.smat.lz4",1,0)
     //FileSource.simpleEnum("/data/livejournal/srcdst/src%04d.smat.lz4",1,0),
     //FileSource.simpleEnum("/data/livejournal/srcdst/dst%04d.smat.lz4",1,0)
@@ -44,7 +44,7 @@ oS.batchSize = batchSize
 oS.nend = (1131 * pct).toInt
 val ds = new FileSource(oS)
 ds.init
-
+    
 sentsOS1.batchSize = batchSize
 sentsOS1.nend = (1131 * pct).toInt
 sentsOS1.eltsPerSample = 500
@@ -115,7 +115,7 @@ for(i <- 0 until powers.ncols){
 var totalNumHashTables = 0
 //var LSTMhashTablesMap = scala.collection.mutable.Map[Int, FMat]()
 var W2VhashTablesMap = scala.collection.mutable.Map[Int, FMat]()
-//lstm_hashtables foreach{kv =>
+//lstm_hashtables foreach{kv => 
 //    try{
 //        mhpstmt.setInt(1, totalNumHashTables);
 //        mhpstmt.setString(2, "LSTM");
@@ -142,11 +142,11 @@ var W2VhashTablesMap = scala.collection.mutable.Map[Int, FMat]()
 //    totalNumHashTables += 1
 //}
 
-w2v_hashtables foreach{kv =>
+w2v_hashtables foreach{kv => 
     (0 until kv._2) foreach {idx =>
         val mm = (bernrnd(0.5, kv._1, 300) * 2 - 1)
         W2VhashTablesMap += (totalNumHashTables -> mm)
-
+        
         mhpstmt.setInt(1, totalNumHashTables);
         mhpstmt.setString(2, "W2V");
         mhpstmt.setInt(3, kv._1);
@@ -199,15 +199,15 @@ while (ds.hasNext) {
     val d = ds.next;
     val sd1 = sds1.next;
     val sd2 = sds2.next;
-
+    
     val metaData = d(0).asInstanceOf[IMat];
     val usersData = d(1).asInstanceOf[IMat];
     // val sentVectorsLSTM = d(2).asInstanceOf[FMat];
     // val bowData = d(3).asInstanceOf[IMat];
-
+        
     val seqData = sd1(0).asInstanceOf[SMat];
     val bowData = sd2(0).asInstanceOf[SMat];
-
+        
     val sentVectorsW2V = FMat((w2v_t * bowData) / (bowData.sum(0) + 0.0000000001)); // avoid NaN's
 
     val allHashes = IMat(sentVectorsW2V.ncols, totalNumHashTables);
@@ -221,7 +221,7 @@ while (ds.hasNext) {
         //println("" + hashes.nrows + ", " + hashes.ncols + " -- " + allHashes.nrows + ", " + allHashes.ncols);
         allHashes(?, i) = hashes.t
     };
-
+    
     //(LSTMhashTablesMap) foreach {case (i, mmLSTM) =>
     //    val dis = mmLSTM * sentVectorsLSTM;
     //    val codes = IMat(FMat(dis>=0));
@@ -230,7 +230,7 @@ while (ds.hasNext) {
     //    //println("" + hashes.nrows + ", " + hashes.ncols + " -- " + allHashes.nrows + ", " + allHashes.ncols);
     //    allHashes(?, i) = hashes.t;
     //};
-
+    
     if (!(metaData.ncols == seqData.ncols && metaData.ncols == usersData.ncols)){
         println("meta: %d, seq: %s, users: %d" format (metaData.ncols,seqData.ncols,usersData.ncols));
     }
@@ -246,7 +246,7 @@ while (ds.hasNext) {
             val url = "http://" + user + ".livejournal.com/";
             val sent = seqData(?, i).data.map((c => dictionary(Math.max(c.toInt - 1, 0)))).mkString(" ").reverse.dropWhile(cc => (cc == '.'|| cc == ' ')).reverse.trim
             // val sent = seqData(?, i).data.reverse.map((c => dictionary(Math.max(c.toInt - 1, 0)))).mkString(" ").dropWhile(cc => (cc == '.'|| cc == ' ')).trim
-
+                
             if (user != currentUser){
                 // insert new user (if necessary)
                 upstmt.setInt(1, userId);
@@ -256,7 +256,7 @@ while (ds.hasNext) {
 
                 currentUser = user
             }
-
+            
             if (ditemid != currentPostId){
                 // insert new blog post
                 ppstmt.setInt(1, ditemid);
@@ -264,18 +264,18 @@ while (ds.hasNext) {
                 ppstmt.setInt(3, timestamp);
                 ppstmt.setInt(4, moodid);
                 ppstmt.addBatch();
-
+                
                 currentPostId = ditemid
                 sentNum = 0
             }
-
+            
             // insert actual sent
             pspstmt.setInt(1, currentPostId);
             pspstmt.setInt(2, sentNum);
             //pspstmt.setInt(2, sent.hashCode);
             pspstmt.setString(3, sent);
             pspstmt.addBatch();
-
+            
             // insert vectors
             w2vstmt.setInt(1, currentPostId);
             w2vstmt.setInt(2, sentNum);
@@ -302,7 +302,7 @@ while (ds.hasNext) {
             }
             // println(user + " --- " + mood + " --- " + sent + " (" + url + ")");
             sentNum += 1
-        }
+        }  
     }
     println("Executing inserts..")
     upstmt.executeBatch();
@@ -314,7 +314,7 @@ while (ds.hasNext) {
     println("batch done");
     //println("batch done, press enter..")
     //scala.io.StdIn.readLine()
-
+    
 }
 upstmt.executeBatch();
 ppstmt.executeBatch();
