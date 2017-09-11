@@ -20,7 +20,9 @@ def run_full():
     num_sents = 0
     last_username = None
     cur = conn.cursor()
-    iterator = (json.loads(line) for line in open("/commuter/full_lj_parse_sents_philipp.json", "r"))
+    iterator = (
+        json.loads(line) for line in open("/commuter/full_lj_parse_philipp/sents/all_posts_sents.json.txt", "r")
+    )
     for post_id, doc in enumerate(iterator):
         if post_id % 10000 == 0:
             conn.commit()
