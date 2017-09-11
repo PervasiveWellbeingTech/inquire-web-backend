@@ -5,7 +5,7 @@ logging.basicConfig(
     level=logging.DEBUG
 )
 rootlog = logging.getLogger()
-rootlog.addHandler(logging.FileHandler(filename="inquire_%s.log" % datetime.datetime.now().isoformat()))
+rootlog.addHandler(logging.FileHandler(filename="logs/inquire_%s.log" % datetime.datetime.now().isoformat()))
 
 log = logging.getLogger(__name__)
 

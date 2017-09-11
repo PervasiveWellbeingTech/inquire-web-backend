@@ -1,0 +1,1 @@
+rsync -avH --exclude-from .rsyncignore . -e ssh dowling@commuter.stanford.edu:~/new_backend

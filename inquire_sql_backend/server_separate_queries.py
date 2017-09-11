@@ -62,13 +62,10 @@ def calculate_hash(vector, table_id):
     return hash_
 
 
-def query_hashtable(q_hashes, tableids, mode):
+def query_hashtable(q_hash, tableid):
     cur = conn.cursor()
-    print("Querying tables/hashes %s.. " % list(zip(tableids, q_hashes)))
+    print("Querying table %s for hash %s.. " % (tableid, q_hash))
     start = time.time()
-    constraint = (" %s " % mode).join(
-        ["(h.table_id = %s and h.hash = %s)" % (tableid, q_hash) for (tableid, q_hash) in zip(tableids, q_hashes)]
-    )
     cur.execute(
         """
         SELECT
@@ -81,39 +78,36 @@ def query_hashtable(q_hashes, tableids, mode):
             p.mood,
             w.sent_vector
         FROM
-            hashes h, users u, posts p, post_sents s, sents_word2vec w
+            users u, posts p, post_sents s, sents_word2vec w, hashes h
         WHERE
-            ( %s ) and
-            p.post_id = h.post_id and
-            s.sent_num = h.sent_num and
+            h.hash = %s and
+            h.table_id = %s and
+            h.post_id = p.post_id and
+            h.sent_num = s.sent_num and
             s.post_id = p.post_id and
             u.userid = p.userid and
             w.post_id = h.post_id and
             w.sent_num = h.sent_num;
-        """ % constraint, ())
-
-    #all_res = [(item[:2], item[2:]) for item in cur.fetchall()]
-    all_res = cur.fetchall()
+        """, (tableid, q_hash))
     took = time.time() - start
+    all_res = [(item[:2], item[2:]) for item in cur.fetchall()]
     print("Found %s matches in %s seconds.. " % (len(all_res), took))
     return all_res
 
 
-
-
 def perform_full_query(query_string, hashtable_ids, mode="and", filter_words=None, min_words=None, max_words=None):
     vec = get_vector(query_string)
-
-    # counts = defaultdict(int)
-
-    t_hashes = [calculate_hash(vec, hashtable_id) for hashtable_id in hashtable_ids]
-
-    res = query_hashtable(t_hashes, hashtable_ids, mode)
-
-
+    seen = dict()
+    counts = defaultdict(int)
+    for hashtable_id in hashtable_ids:
+        t_hash = calculate_hash(vec, hashtable_id)
+        res = query_hashtable(t_hash, hashtable_id)
+        for primary_key, additional_data in res:
+            seen[primary_key] = additional_data  # keep unique results
+            counts[primary_key] += 1
 
     # print(list(seen.items())[:3])
-    # print(list(counts.items())[:20])
+    print(list(counts.items())[:20])
 
     cands = []
     cand_vecs = []
@@ -121,10 +115,12 @@ def perform_full_query(query_string, hashtable_ids, mode="and", filter_words=Non
     if (min_words is not None) or (max_words is not None):
         print("enforcing %s <= textlen <= %s" % (min_words, max_words))
 
-    for row in res:
-        text = row[2]
-        # val = seen[key]
-        # text = val[0]
+    for key, count in counts.items():
+        if mode == "and" and count != len(hashtable_ids):
+            continue
+
+        val = seen[key]
+        text = val[0]
 
         if filter_words is not None:
             for filter_word in filter_words:
@@ -136,9 +132,8 @@ def perform_full_query(query_string, hashtable_ids, mode="and", filter_words=Non
             if not (int(min_words or 0) <= textlen <= int(max_words or 99999)):
                 continue
 
-        cands.append(row[:-1])
-        cand_vecs.append(np.array(row[-1]))
-
+        cands.append(list(key) + list(val[:-1]))
+        cand_vecs.append(np.array(val[-1]))
     print("Keeping %s candidates.." % len(cands))
 
     if len(cands) == 0:
@@ -150,8 +145,7 @@ def perform_full_query(query_string, hashtable_ids, mode="and", filter_words=Non
         np.array(cand_vecs),
         metric="cosine"
     ).reshape((len(cand_vecs),))
-
-    cands = [list(cand) + [sim, ] for (cand, sim) in zip(cands, similarities)]
+    cands = [cand + [sim, ] for (cand, sim) in zip(cands, similarities)]
     print("Sorting..")
     cands = sorted(cands, key=lambda item: -item[-1])
     print("All done.")
@@ -174,6 +168,7 @@ def query_hashtable_info():
     print("Found %s matches in %s seconds.. " % (len(all_res), took))
     return all_res
 
+
 @app.route("/hashtables_info")
 def get_hashtables_info():
     return jsonify([{"id": row[0], "model": row[1], "num_bits": row[2]} for row in query_hashtable_info()])
@@ -190,7 +185,6 @@ def query():
         hashtables = [5, 6, 7, 8, 9, 10, 11, 12]
     print(hashtables)
     mode = request.args.get("mode", "and")
-    assert mode in ["or", "and"]
 
     filter_words = request.args.get("filter", None)
     if filter_words:
@@ -224,3 +218,4 @@ if __name__ == '__main__':
     load_dictionary()
     load_lsh_vectors()
     run_simple("0.0.0.0", port=8080, application=app)
+

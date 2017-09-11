@@ -11,23 +11,23 @@ val sentsOS1 = new SFileSource.Options
 val sentsOS2 = new SFileSource.Options
 sentsOS1.fnames = List(
     //FileSource.simpleEnum("/home/data/livejournal/srcdst/src%04d.smat.lz4",1,0) // sequences
-    FileSource.simpleEnum("/home/data/livejournal/sentences2/data%d_sent.smat.lz4",1,0) // sequences
+    FileSource.simpleEnum("/commuter/livejournal/livejournal/sentences2/data%d_sent.smat.lz4",1,0) // sequences
 )
 sentsOS2.fnames = List(
     //FileSource.simpleEnum("/home/data/livejournal/srcdst/data%04d.smat.lz4",1,0) // bag of words
-    FileSource.simpleEnum("/home/data/livejournal/sentences2/data%d.smat.lz4",1,0) // bag of words
+    FileSource.simpleEnum("/commuter/livejournal/livejournal/sentences2/data%d.smat.lz4",1,0) // bag of words
 )
 
 val oS = new FileSource.Options
 //val textSample = loadSMat("/data/livejournal/srcdst/src%4d.smat.lz4")
 oS.fnames = List(
     //FileSource.simpleEnum("/home/data/livejournal/srcdst/data%d.imat", 1, 0), // metadata
-    FileSource.simpleEnum("/home/data/livejournal/sentences2/data%d.imat", 1, 0), // metadata
+    FileSource.simpleEnum("/commuter/livejournal/livejournal/sentences2/data%d.imat", 1, 0), // metadata
 
     //FileSource.simpleEnum("/home/data/livejournal/sentences2/data%d_usernames.imat.lz4 "),
     //FileSource.simpleEnum("/home/data/livejournal/sentences2/data%d_usernames.sbmat.lz4",1,0)
     //FileSource.simpleEnum("/home/data/livejournal/srcdst/data%d_usernamest.imat.lz4", 1, 0),  // userids
-    FileSource.simpleEnum("/home/data/livejournal/sentences2/data%d_usernamest.imat.lz4")  // userids
+    FileSource.simpleEnum("/commuter/livejournal/livejournal/sentences2/data%d_usernamest.imat.lz4")  // userids
     //FileSource.simpleEnum("/home/data/livejournal/preds/pred%04d.fmat.lz4", 1, 0)  // LSTM vectors
 
     
@@ -57,21 +57,21 @@ sentsOS2.eltsPerSample = 500
 val sds2 = new SFileSource(sentsOS2)
 sds2.init
 
-var dic = loadSBMat("/home/data/livejournal/sentences2/masterDict.sbmat");
+var dic = loadSBMat("/commuter/livejournal/livejournal/sentences2/masterDict.sbmat");
 val dictionary = Dict(dic);
 
-var mooddic = loadSBMat("/home/data/livejournal/moods_dict.sbmat.lz4");
+var mooddic = loadSBMat("/commuter/livejournal/livejournal/moods_dict.sbmat.lz4");
 val mood_dictionary = Dict(mooddic);
 
-var usersdic = loadSBMat("/home/data/livejournal/sentences2/users_dict_full_values.sbmat.lz4");
+var usersdic = loadSBMat("/commuter/livejournal/livejournal/sentences2/users_dict_full_values.sbmat.lz4");
 val users_dictionary = Dict(usersdic);
 
-var w2v_t = loadFMat("/home/data/livejournal/sentences2/googleEmbeddings.fmat").t
+var w2v_t = loadFMat("/commuter/livejournal/livejournal/sentences2/googleEmbeddings.fmat").t
 
 var count = 0
 
 classOf[org.postgresql.Driver]
-val conn_str = "jdbc:postgresql://localhost:5432/inquire?user=postgres&password=12344321"
+val conn_str = "jdbc:postgresql://localhost:5432/inquire_new?user=postgres&password=12344321"
 val conn = DriverManager.getConnection(conn_str)
 
 val userSQL = "INSERT INTO users VALUES (?, ?, ?) ON CONFLICT DO NOTHING";
@@ -80,7 +80,7 @@ val upstmt = conn.prepareStatement(userSQL);
 val dictSQL = "INSERT INTO word2id VALUES (?, ?)  ON CONFLICT DO NOTHING;";
 val dictstmt = conn.prepareStatement(dictSQL);
 
-val postSQL = "INSERT INTO posts VALUES (?,?,?,?) ON CONFLICT DO NOTHING;";
+val postSQL = "INSERT INTO posts VALUES (?, ?,?,?,?) ON CONFLICT DO NOTHING;";
 val ppstmt = conn.prepareStatement(postSQL);
 
 val postSentSQL = "INSERT INTO post_sents VALUES (?,?,?) ON CONFLICT DO NOTHING;";
@@ -191,6 +191,7 @@ var currentUser = "";
 var currentPostId = -1;
 var sentNum = 0;
 var totalProcessed = 0;
+var global_post_id = 0;
 while (ds.hasNext) {
     count += 1
     if (count % 1 == 0) {
@@ -208,19 +209,19 @@ while (ds.hasNext) {
     val seqData = sd1(0).asInstanceOf[SMat];
     val bowData = sd2(0).asInstanceOf[SMat];
         
-    val sentVectorsW2V = FMat((w2v_t * bowData) / (bowData.sum(0) + 0.0000000001)); // avoid NaN's
+    //val sentVectorsW2V = FMat((w2v_t * bowData) / (bowData.sum(0) + 0.0000000001)); // avoid NaN's
 
-    val allHashes = IMat(sentVectorsW2V.ncols, totalNumHashTables);
+    //val allHashes = IMat(sentVectorsW2V.ncols, totalNumHashTables);
 
-    (W2VhashTablesMap) foreach {case (i, mmW2V) =>
-        //println("mmW2V: " + mmW2V.nrows + ", " + mmW2V.ncols + " -- sv: " + sentVectorsW2V.nrows + ", " + sentVectorsW2V.ncols)
-        val dis = mmW2V * sentVectorsW2V;
-        val codes = IMat(FMat(dis>=0));
-        val pows = powers(0 until mmW2V.nrows);
-        var hashes = pows * codes;
-        //println("" + hashes.nrows + ", " + hashes.ncols + " -- " + allHashes.nrows + ", " + allHashes.ncols);
-        allHashes(?, i) = hashes.t
-    };
+    //(W2VhashTablesMap) foreach {case (i, mmW2V) =>
+    //    //println("mmW2V: " + mmW2V.nrows + ", " + mmW2V.ncols + " -- sv: " + sentVectorsW2V.nrows + ", " + sentVectorsW2V.ncols)
+    //    val dis = mmW2V * sentVectorsW2V;
+    //    val codes = IMat(FMat(dis>=0));
+    //    val pows = powers(0 until mmW2V.nrows);
+    //    var hashes = pows * codes;
+    //    //println("" + hashes.nrows + ", " + hashes.ncols + " -- " + allHashes.nrows + ", " + allHashes.ncols);
+    //    allHashes(?, i) = hashes.t
+    //};
     
     //(LSTMhashTablesMap) foreach {case (i, mmLSTM) =>
     //    val dis = mmLSTM * sentVectorsLSTM;
@@ -259,32 +260,34 @@ while (ds.hasNext) {
             
             if (ditemid != currentPostId){
                 // insert new blog post
-                ppstmt.setInt(1, ditemid);
-                ppstmt.setInt(2, userId);
-                ppstmt.setInt(3, timestamp);
-                ppstmt.setInt(4, moodid);
+                global_post_id += 1;
+                ppstmt.setInt(1, global_post_id);
+                ppstmt.setInt(2, ditemid);
+                ppstmt.setInt(3, userId);
+                ppstmt.setInt(4, timestamp);
+                ppstmt.setInt(5, moodid);
                 ppstmt.addBatch();
                 
-                currentPostId = ditemid
-                sentNum = 0
+                currentPostId = ditemid;
+                sentNum = 0;
             }
             
             // insert actual sent
-            pspstmt.setInt(1, currentPostId);
+            pspstmt.setInt(1, global_post_id);
             pspstmt.setInt(2, sentNum);
             //pspstmt.setInt(2, sent.hashCode);
             pspstmt.setString(3, sent);
             pspstmt.addBatch();
             
             // insert vectors
-            w2vstmt.setInt(1, currentPostId);
-            w2vstmt.setInt(2, sentNum);
-            //w2vstmt.setInt(2, sent.hashCode);
-            val arrw2v = conn.createArrayOf("decimal", sentVectorsW2V(?, i).data map (i => i.asInstanceOf[Object]))
-            w2vstmt.setArray(3, arrw2v);
-            w2vstmt.addBatch();
+            //w2vstmt.setInt(1, global_post_id);
+            //w2vstmt.setInt(2, sentNum);
+            ////w2vstmt.setInt(2, sent.hashCode);
+            //val arrw2v = conn.createArrayOf("decimal", sentVectorsW2V(?, i).data map (i => i.asInstanceOf[Object]))
+            //w2vstmt.setArray(3, arrw2v);
+            //w2vstmt.addBatch();
 
-            //lstmstmt.setInt(1, currentPostId);
+            //lstmstmt.setInt(1, global_post_id);
             ////lstmstmt.setInt(2, sentNum);
             //lstmstmt.setInt(2, sent.hashCode);
             //val arrlstm = conn.createArrayOf("decimal", sentVectorsLSTM(?, i).data map (i => i.asInstanceOf[Object]))
@@ -292,14 +295,14 @@ while (ds.hasNext) {
             //lstmstmt.addBatch();
 
             // insert sent hashes
-            (0 until totalNumHashTables) foreach {hashTableIdx =>
-                hpstmt.setInt(1, hashTableIdx);
-                hpstmt.setInt(2, currentPostId);
-                hpstmt.setInt(3, sentNum);
-                //hpstmt.setInt(3, sent.hashCode);
-                hpstmt.setInt(4, allHashes(i, hashTableIdx));
-                hpstmt.addBatch();
-            }
+            //(0 until totalNumHashTables) foreach {hashTableIdx =>
+            //    hpstmt.setInt(1, hashTableIdx);
+            //    hpstmt.setInt(2, global_post_id);
+            //    hpstmt.setInt(3, sentNum);
+            //    //hpstmt.setInt(3, sent.hashCode);
+            //    hpstmt.setInt(4, allHashes(i, hashTableIdx));
+            //    hpstmt.addBatch();
+            //}
             // println(user + " --- " + mood + " --- " + sent + " (" + url + ")");
             sentNum += 1
         }  
