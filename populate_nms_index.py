@@ -1,7 +1,6 @@
 from multiprocessing import pool
 import psycopg2
-import numpy as np
-from annoy import AnnoyIndex
+from inquire_sql_backend.nearest_neighbors.NMSLibIndex import NMSLibIndex
 import logging
 import itertools
 from inquire_sql_backend.embeddings.util import tokenize
@@ -21,16 +20,19 @@ psycopg2.extensions.register_type(DEC2FLOAT)
 
 conn = psycopg2.connect("host=localhost dbname=inquire_newparse user=postgres password=12344321")
 
+
 letters = list("зсьовфдагтурйпб«эыинямжчеклю»ш")
 
 
-def populate_annoy_index(trees=200, debug=False, vector_method="glove"):
-    index = AnnoyIndex(300, metric="angular")
+def is_russian(text):
+    return any([l in text for l in letters])  # filter out russian posts
+
+
+def populate_nmslib_index(count=None, vector_method="glove"):
+    index = NMSLibIndex()
     p = pool.Pool(processes=14)
 
-    if debug:
-        count = 10000000
-    else:
+    if count is None:
         cur1 = conn.cursor()
         cur1.execute(
             """SELECT count(*) from post_sents"""
@@ -49,36 +51,38 @@ def populate_annoy_index(trees=200, debug=False, vector_method="glove"):
             s.sent_text
         FROM
             post_sents s
-        """ + (("\n LIMIT %s;" % (count + 1)) if debug else ";"), ())
+        """ + (("\n LIMIT %s;" % (count + 1)) if count is not None else ";"), ())
 
     log.debug("Populating index..")
-
-    filtered = (
-        row for row in tmp_cur
-        if not any([l in row[-1] for l in letters])  # filter out russian posts
-    )
+    filtered = (row for row in tmp_cur if not is_russian(row[-1]))
 
     db_cursor, curit2 = itertools.tee(filtered)
     texts = (row[-1] for row in curit2)
 
     tokens_it = p.imap(tokenize, texts, chunksize=1000)
+    buf = []
+    for idx, ((post_id, sent_num, _), tokens) in enumerate(zip(db_cursor, tokens_it)):
+        if idx % 10000 == 0:
+            if buf:
+                vectors, metadata = zip(*buf)
+                index.add_data(vectors=vectors, metadata=metadata)
+                buf = []
+            log.debug("Added %s items.." % idx)
 
-    with open("/commuter/pdowling/annoy-index/new_%sM_annoy_to_sql_ids_%s_%s.txt" % (count/1000000, vector_method, trees), "w") as outf:
-        for id_, ((post_id, sent_num, _), tokens) in enumerate(zip(db_cursor, tokens_it)):
-            internal_id = count - id_
-            if id_ % 10000 == 0:
-                log.debug("Added %s items.." % id_)
+        sent_vector = vector_embed_sentence(tokens, method=vector_method)
+        if sent_vector is not None:
+            buf.append((sent_vector, (post_id, sent_num)))
+    if buf:
+        vectors, metadata = zip(*buf)
+        index.add_data(vectors=vectors, metadata=metadata)
 
-            sent_vector = vector_embed_sentence(tokens, method=vector_method)
-            if sent_vector is not None:
-                index.add_item(internal_id, np.array(sent_vector))
-                outf.write("%s\t%s\t%s\n" % (internal_id, post_id, sent_num))
-
-    log.debug("Building annoy index with %s trees.." % trees)
-    index.build(trees)
+    index.build()
     log.debug("Saving index..")
-    index.save("/commuter/pdowling/annoy-index/new_%sM_livejournal_%s_%strees.indx" % (count/1000000, vector_method, trees))
+    fname = "/commuter/inquire-nmslib-index/nms_%sM_livejournal_%s.idx" % (count/1000000, vector_method)
+    index.save(fname)
     log.debug("Done!")
+    return fname
 
 if __name__ == '__main__':
-    populate_annoy_index(debug=True, trees=200)
+    wrote_to = populate_nmslib_index(count=10000000)
+    log.debug("Wrote saved index to %s" % wrote_to)
