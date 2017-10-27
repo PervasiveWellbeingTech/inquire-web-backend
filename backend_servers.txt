@@ -1,2 +1,0 @@
-http://commuter.stanford.edu:9000/
-http://commuter.stanford.edu:9001/

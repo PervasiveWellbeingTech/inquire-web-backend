@@ -1,10 +1,12 @@
-from multiprocessing import pool
-import psycopg2
-from inquire_sql_backend.nearest_neighbors.NMSLibIndex import NMSLibIndex
-import logging
 import itertools
-from inquire_sql_backend.embeddings.util import tokenize
-from inquire_sql_backend.embeddings.vectors import vector_embed_sentence
+import logging
+from multiprocessing import pool
+
+import psycopg2
+
+from inquire_sql_backend.semantics.embeddings.subspaces import vector_embed_sentence
+from inquire_sql_backend.semantics.embeddings.util import tokenize
+from inquire_sql_backend.semantics.nearest_neighbors.NMSLibIndex import NMSLibIndex
 
 logging.basicConfig(
     format="%(asctime)s %(levelname)-8s %(name)-18s: %(message)s",

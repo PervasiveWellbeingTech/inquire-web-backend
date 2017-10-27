@@ -1,9 +1,12 @@
+import logging
+import time
+
 import psycopg2
 from annoy import AnnoyIndex
-import time
-import logging
 from flask import Flask, request, jsonify
-from inquire_sql_backend.embeddings.vectors import vector_embed_sentence
+
+from inquire_sql_backend.semantics.embeddings.vectors import vector_embed_sentence
+
 logging.basicConfig(format="%(asctime)s %(levelname)-8s %(name)-18s: %(message)s",level=logging.DEBUG)
 log = logging.getLogger(__name__)
 DEC2FLOAT = psycopg2.extensions.new_type(psycopg2.extensions.DECIMAL.values, 'DEC2FLOAT', lambda value, curs: float(value) if value is not None else None)

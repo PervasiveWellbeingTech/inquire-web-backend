@@ -1,159 +1,115 @@
-import psycopg2
-import time
 import logging
+import time
+
 from flask import Flask, request, jsonify
-from inquire_sql_backend.nearest_neighbors.NMSLibIndex import NMSLibIndex
-from inquire_sql_backend.embeddings.vectors import vector_embed_sentence
+
+from inquire_sql_backend.query.db import retrieve_sent_metadata_lj, retrieve_sent_context_metadata_lj
+from inquire_sql_backend.query.user_query import query_user_sents, retrieve_all_user_posts
+from inquire_sql_backend.query.util import apply_filters, parse_query_params
+from inquire_sql_backend.semantics.embeddings.vectors import vector_embed_sentence
+from inquire_sql_backend.semantics.nearest_neighbors.NMSLibIndex import get_nms_index
 
 logging.basicConfig(format="%(asctime)s %(levelname)-8s %(name)-18s: %(message)s", level=logging.DEBUG)
 log = logging.getLogger(__name__)
-DEC2FLOAT = psycopg2.extensions.new_type(psycopg2.extensions.DECIMAL.values, 'DEC2FLOAT',
-                                         lambda value, curs: float(value) if value is not None else None)
-psycopg2.extensions.register_type(DEC2FLOAT)
-
-INDEXES = {
-    "glove": "/commuter/inquire-nmslib-index/nms_10.0M_livejournal_glove.idx",
-    "lstm": None  # TODO
-}
 
 app = Flask("inquire_sql")
-conn = psycopg2.connect("host=localhost dbname=inquire_newparse user=postgres password=12344321")
-
-_index = None
 
 
-def get_nms_index(method="glove"):
-    global _index
-    if _index is None:
-        _index = NMSLibIndex.load(INDEXES[method])
-
-    return _index
-
-
-def query_hashtable(query_string, nns=100, method="glove"):
-    query_vector = vector_embed_sentence(query_string, method=method)
-
+def perform_full_query(query_vector, method="glove", nns=100):
     start = time.time()
-    cur = conn.cursor()
-    index = get_nms_index(method=method)
-    result_ids = [
-        ((post_id, sent_num), float(dist))
-        for ((post_id, sent_num), dist)
-        in zip(*index.query(query_vector, nns))
-    ]
+    # query_vector = vector_embed_sentence(query_string, method=method)
+    # Run the ANN query and sort
+    ann_query_results = get_nms_index(method=method).query(query_vector, nns)
+    result_ids = [(sent_pkey, float(dist)) for (sent_pkey, dist) in zip(*ann_query_results)]
     result_ids = sorted(result_ids, key=lambda kv: -kv[1])
-    log.debug("NMSLib returned %s items" % len(result_ids))
     nms_res, dists = zip(*result_ids)
 
-    log.debug("Running separate queries for post lookup..")
-    all_res = []
-    for post_id, sent_num in nms_res:
-        cur.execute(
-            """
-            SELECT
-                p.lj_post_id,
-                s.sent_num,
-                s.sent_text,
-                u.username,
-                p.post_time,
-                p.mood
-            FROM
-                users u, posts p, post_sents s
-            WHERE
-                s.post_id = p.post_id and
-                p.userid = u.userid and
-                s.post_id = %s and
-                s.sent_num = %s;
-            """, (post_id, sent_num))
+    # Retrieve full data from DB
+    t1 = time.time() - start
+    log.debug("ANN search returned %s items in %s seconds, now running db queries for content.." % (len(nms_res), t1))
 
-        all_res.append(cur.fetchall()[0])
+    nearest_neighbors_full = []
+    for (post_id, sent_num), dist in zip(nms_res, dists):
+        res_dict = retrieve_sent_metadata_lj(post_id, sent_num)
+        res_dict["similarity"] = float(str(1. - dist)[:4])
+        nearest_neighbors_full.append(res_dict)
 
-    took = time.time() - start
-    print("Found %s matches in %s seconds.. " % (len(all_res), took))
-    return all_res, dists
-
-
-def perform_full_query(
-        query_string, method="glove", nns=100, filter_words=None, min_words=None, max_words=None
-):
-    res, dists = query_hashtable(query_string, nns=nns, method=method)
-
-    log.debug("Found %s results in hashtables" % len(res))
-
-    cands = []
-
-    if (min_words is not None) or (max_words is not None):
-        print("enforcing %s <= textlen <= %s" % (min_words, max_words))
-
-    for row, dist in zip(res, dists):
-        text = row[2]
-        remove = False
-
-        if filter_words is not None:
-            for filter_word in filter_words:
-                if filter_word in text:
-                    remove = True
-
-        if (min_words is not None) or (max_words is not None):
-            textlen = len(text.split())
-            if not (int(min_words or 0) <= textlen <= int(max_words or 99999)):
-                remove = True
-
-        if not remove:
-            cands.append(list(row) + [dist])
-
-    print("Keeping %s candidates.." % len(cands))
-
-    if len(cands) == 0:
-        return []
-
-    print("All done.")
-    return cands
+    return nearest_neighbors_full
 
 
 @app.route("/query")
 def query():
     print("args: %s" % request.args)
-    min_words = request.args.get("minWords", None)
-    max_words = request.args.get("maxWords", None)
-    # nns = request.args.get("nns", 100)
+    any_filters, filter_words, max_words, min_words, query_string, top = parse_query_params()
 
-    filter_words = request.args.get("filter", None)
-    if filter_words:
-        filter_words = [w.strip().lower() for w in filter_words.split(",")]
-    top = int(request.args.get("top"))
-    top = min(top, 1000)
-    log.debug("Top is %s" % top)
-    log.debug("Filter words are %s" % (filter_words,))
+    query_vector = vector_embed_sentence(query_string, method="glove")
+    results_to_keep = []
+    if query_vector is not None:
 
-    any_filters = filter_words is not None or min_words is not None or max_words is not None
-    query_string = request.args.get("data")
-
-    res = perform_full_query(
-        query_string,
-        nns=top * 2 if any_filters else top,
-        filter_words=filter_words,
-        min_words=min_words,
-        max_words=max_words
-    )
-    res = res[:top]
-    if res:
-        print(res[0])
-        post_ids, sent_nums, sent_texts, usernames, post_times, moods, similarities = zip(*res)
-        urls = [
-            "http://%s.livejournal.com/%s.html" % (username, post_id)
-            for (username, post_id) in zip(usernames, post_ids)
-            ]
-
-        return jsonify(
-            {
-                "result_count": len(urls),
-                "query": query_string,
-                "query_results": [sent_texts],
-                "cosine_similarity": similarities,
-                "emotion": [moods],
-                "url": [urls]
-            }
+        start = time.time()
+        unfiltered_nearest_neighbors = perform_full_query(
+            query_vector, nns=top * 2 if any_filters else top  # TODO there's almost definitely a better way of setting nns
         )
-    else:
-        return jsonify({"urls": [], "sents": [], "timestamps": [], "moods": []})
+        took = time.time() - start
+
+        print("Found %s matches in %s seconds total, now filtering.. " % (len(unfiltered_nearest_neighbors), took))
+        results_to_keep = apply_filters(unfiltered_nearest_neighbors, max_words, min_words, filter_words, top)
+
+        if results_to_keep:
+            print(results_to_keep[0])
+
+    res = {
+        "result_count": len(results_to_keep),
+        "query": query_string,
+        "query_results": results_to_keep
+    }
+    return jsonify(res)
+
+
+@app.route("/user/<username>")
+def get_user(username):
+    return jsonify(retrieve_all_user_posts(username))
+
+
+@app.route("/user_query/<username>")
+def query_user(username):
+    print("args: %s" % request.args)
+    any_filters, filter_words, max_words, min_words, query_string, top = parse_query_params()
+
+    query_vector = vector_embed_sentence(query_string, method="glove")
+
+    start = time.time()
+    filtered_nearest_neighbors = query_user_sents(
+        username,
+        query_vector, top=top * 2 if any_filters else top  # TODO there's almost definitely a better way of setting nns
+    )
+    took = time.time() - start
+
+    print("Found %s matches in %s seconds total, now filtering.. " % (len(filtered_nearest_neighbors), took))
+    results_to_keep = apply_filters(filtered_nearest_neighbors, max_words, min_words, filter_words, top)
+
+    if filtered_nearest_neighbors:
+        print(results_to_keep[0])
+
+    res = {
+        "result_count": len(results_to_keep),
+        "query": query_string,
+        "query_results": results_to_keep
+    }
+    return jsonify(res)
+
+
+@app.route("/contexts", methods=["POST"])
+def get_contexts():
+    print("args: %s" % request.args)
+    posted_data = request.get_json(force=True)
+    window = posted_data.get("window", None)
+    res_windows = []
+    for post_id, sent_num in posted_data["sents"]:
+        res_windows.append(retrieve_sent_context_metadata_lj(post_id, sent_num, window))
+    return jsonify(
+        {
+            "result_count": len(res_windows),
+            "query_results": res_windows
+        }
+    )

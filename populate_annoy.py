@@ -1,11 +1,13 @@
-from multiprocessing import pool
-import psycopg2
-import numpy as np
-from annoy import AnnoyIndex
-import logging
 import itertools
-from inquire_sql_backend.embeddings.util import tokenize
+import logging
+from multiprocessing import pool
+
+import numpy as np
+import psycopg2
+from annoy import AnnoyIndex
 from inquire_sql_backend.embeddings.vectors import vector_embed_sentence
+
+from inquire_sql_backend.semantics.embeddings.util import tokenize
 
 logging.basicConfig(
     format="%(asctime)s %(levelname)-8s %(name)-18s: %(message)s",
