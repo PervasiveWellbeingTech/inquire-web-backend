@@ -30,5 +30,8 @@ def clean_sent(sent):
 tok = TreebankWordTokenizer()
 
 
-def tokenize(t):
-    return tok.tokenize(clean_sent(t))
+def tokenize(t, remove_stop=True):
+    if remove_stop:
+        return tok.tokenize(clean_sent(t))
+    else:
+        return tok.tokenize(t)

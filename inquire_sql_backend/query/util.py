@@ -43,4 +43,14 @@ def parse_query_params():
     any_filters = filter_words is not None or min_words is not None or max_words is not None
     query_string = request.args.get("data")
 
-    return any_filters, filter_words, max_words, min_words, query_string, top
+    model = request.args.get("model", "default")
+    dataset = request.args.get("dataset", "livejournal")
+
+    return any_filters, filter_words, max_words, min_words, query_string, top, model, dataset
+
+
+letters = list("зсьовфдагтурйпб«эыинямжчеклю»ш")
+
+
+def is_russian(text):
+    return any([l in text for l in letters])  # filter out russian posts

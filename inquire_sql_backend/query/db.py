@@ -2,89 +2,111 @@ from operator import itemgetter
 
 import psycopg2
 
+from inquire_sql_backend.config import DB_LIVEJOURNAL_STRING, DB_REDDIT_STRING
+import logging
+log = logging.getLogger(__name__)
+
 DEC2FLOAT = psycopg2.extensions.new_type(psycopg2.extensions.DECIMAL.values, 'DEC2FLOAT',
                                          lambda value, curs: float(value) if value is not None else None)
 psycopg2.extensions.register_type(DEC2FLOAT)
-conn = psycopg2.connect("host=localhost dbname=inquire_newparse user=postgres password=12344321")
+
+conns = {
+    "livejournal": psycopg2.connect(DB_LIVEJOURNAL_STRING),
+    "reddit": psycopg2.connect(DB_REDDIT_STRING)
+}
 
 
-def retrieve_sent_metadata_lj(post_id, sent_num):
-    cur = conn.cursor()
+def retrieve_sent_metadata(post_id, sent_num, dataset="livejournal"):
+    cur = conns[dataset].cursor()
+    log.debug("Getting (%s, %s) from %s" % (post_id, sent_num, dataset))
+    if dataset == "livejournal":
+        ext_post_id_name = "lj_post_id"  # TODO this is different for Reddit, and will also be adjusted for LJ
+    else:
+        ext_post_id_name = "ext_post_id"
     cur.execute(
         """
         SELECT
-            p.lj_post_id,
+            p.{ext_post_id_name},
             p.post_id,
             s.sent_num,
             s.sent_text,
             u.username,
             p.post_time,
-            p.mood
+            pm.data
         FROM
-            users u, posts p, post_sents s
+            users u, post_sents s,
+            posts p left join posts_misc pm on p.post_id = pm.post_id
         WHERE
             s.post_id = p.post_id and
             p.userid = u.userid and
             s.post_id = %s and
             s.sent_num = %s;
-        """, (post_id, sent_num))
-    res = cur.fetchall()[0]
-    as_dict = dict(zip(["lj_post_id", "post_id", "sent_num", "sent_text", "username", "post_time", "mood"], res))
-    as_dict["url"] = "http://%s.livejournal.com/%s.html" % (as_dict["username"], as_dict["lj_post_id"])
+        """.format(ext_post_id_name=ext_post_id_name), (post_id, sent_num))
+    row = cur.fetchall()[0]
+    as_dict = parse_row(dataset, row, fill_url=True)
+    # as_dict = dict(zip(["lj_post_id", "post_id", "sent_num", "sent_text", "username", "post_time"], row))
     return as_dict
 
 
-def retrieve_sent_context_metadata_lj(post_id, sent_num, window=None):
-    cur = conn.cursor()
+def retrieve_sent_context_metadata(post_id, sent_num, window=None, dataset="livejournal"):
+    cur = conns[dataset].cursor()
+    if dataset == "livejournal":
+        ext_post_id_name = "lj_post_id"  # TODO this is different for Reddit, and will also be adjusted for LJ
+    else:
+        ext_post_id_name = "ext_post_id"
     if window is None:
         cur.execute(
             """
             SELECT
-                p.lj_post_id,
+                p.{ext_post_id_name},
                 p.post_id,
                 s.sent_num,
                 s.sent_text,
                 u.username,
-                p.post_time,
-                p.mood
+                p.post_time
+                pm.data
             FROM
-                users u, posts p, post_sents s
+                users u, post_sents s,
+                posts p left join posts_misc pm on p.post_id = pm.post_id
             WHERE
                 s.post_id = p.post_id and
                 p.userid = u.userid and
                 s.post_id = %s;
-            """, (post_id,)
+            """.format(ext_post_id_name=ext_post_id_name), (post_id,)
         )
     else:
         cur.execute(
             """
             SELECT
-                p.lj_post_id,
+                p.{ext_post_id_name},
                 p.post_id,
                 s.sent_num,
                 s.sent_text,
                 u.username,
                 p.post_time,
-                p.mood
+                pm.data
             FROM
-                users u, posts p, post_sents s
+                users u, post_sents s,
+                posts p left join posts_misc pm on p.post_id = pm.post_id
             WHERE
                 s.post_id = p.post_id and
                 p.userid = u.userid and
                 s.post_id = %s and
                 s.sent_num >= %s and
                 s.sent_num <= %s;
-            """, (post_id, sent_num - window, sent_num + window)
+            """.format(ext_post_id_name=ext_post_id_name), (post_id, sent_num - window, sent_num + window)
         )
 
     res = cur.fetchall()
     final_dict = None
     sents = []
+
     for row in res:
-        as_dict = dict(zip(["lj_post_id", "post_id", "sent_num", "sent_text", "username", "post_time", "mood"], row))
+        as_dict = parse_row(dataset, row, fill_url=False)
+
         if as_dict["sent_num"] == sent_num:  # keep the original center of the context
+            as_dict = parse_row(dataset, row, fill_url=True)
             final_dict = as_dict
-            final_dict["url"] = "http://%s.livejournal.com/%s.html" % (as_dict["username"], as_dict["lj_post_id"])
 
         sents.append((int(as_dict["sent_num"]), as_dict["sent_text"]))
     sents = list(zip(*list(sorted(sents, key=itemgetter(0)))))[1]
@@ -92,31 +114,59 @@ def retrieve_sent_context_metadata_lj(post_id, sent_num, window=None):
     return final_dict
 
 
-def retrieve_user_sents(username):
-    cur = conn.cursor()
-    cur.execute(
+def retrieve_user_sents(username, dataset="livejournal"):
+    cur = conns[dataset].cursor()
+    if dataset == "livejournal":
+        ext_post_id_name = "lj_post_id"  # TODO this is different for Reddit, and will also be adjusted for LJ
+    else:
+        ext_post_id_name = "ext_post_id"
+    cur.execute(  # TODO make sure that this coalesce works
         """
         SELECT
-            p.lj_post_id,
+            p.{ext_post_id_name},
             p.post_id,
             s.sent_num,
             s.sent_text,
             u.username,
             p.post_time,
-            p.mood
+            pm.data
         FROM
-            users u, posts p, post_sents s
+            users u, post_sents s,
+            posts p left join posts_misc pm on p.post_id = pm.post_id
         WHERE
             s.post_id = p.post_id and
             p.userid = u.userid and
             u.username = %s;
-        """, (username,)
+        """.format(ext_post_id_name=ext_post_id_name), (username,)
     )
     res = cur.fetchall()
     final = []
     for row in res:
-        as_dict = dict(zip(["lj_post_id", "post_id", "sent_num", "sent_text", "username", "post_time", "mood"], row))
-        as_dict["url"] = "http://%s.livejournal.com/%s.html" % (username, as_dict["lj_post_id"])
+        as_dict = parse_row(dataset, row)
+
         final.append(as_dict)
 
     return final
+
+
+def parse_row(dataset, row, fill_url=True):
+    as_dict = dict(zip(["ext_post_id", "post_id", "sent_num", "sent_text", "username", "post_time", "data"], row))
+
+    if not fill_url:
+        del as_dict["data"]
+        return as_dict
+
+    if dataset == "livejournal":
+        as_dict["url"] = "http://%s.livejournal.com/%s.html" % (as_dict["username"], as_dict["ext_post_id"])
+    elif dataset == "reddit":
+        metadata = as_dict["data"]
+        link_id = metadata["link_id"].split("_")[1]
+        subreddit = metadata["subreddit"]
+        comment_id = as_dict["ext_post_id"]
+        as_dict["url"] = "https://www.reddit.com/r/%s/comments/%s/x/%s" % (subreddit, link_id, comment_id)
+    else:
+        raise ValueError("Unknown dataset")
+
+    # TODO maybe we should just send this too?
+    del as_dict["data"]
+    return as_dict

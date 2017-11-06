@@ -22,13 +22,12 @@ from python_skipthought_training.training.model import init_params, build_encode
 #-----------------------------------------------------------------------------#
 # Specify model and dictionary locations here
 #-----------------------------------------------------------------------------#
-path_to_model_npz = '/commuter/skipthoughts/bookCorpus/model.npz'
-path_to_model = '/commuter/skipthoughts/bookCorpus/model.pkl'
-path_to_dictionary = '/commuter/skipthoughts/bookCorpus/dict'
-path_to_word2vec = '/ais/gobi3/u/rkiros/word2vec/GoogleNews-vectors-negative300.bin'
-#-----------------------------------------------------------------------------#
 
-def load_model(embed_map=None):
+# path_to_word2vec = '/ais/gobi3/u/rkiros/word2vec/GoogleNews-vectors-negative300.bin'
+#-----------------------------------------------------------------------------#
+#         path_to_model_npz='/commuter/skipthoughts/bookCorpus/model.npz',
+
+def load_model(embed_map, path_to_model, path_to_dictionary):
     """
     Load all model components + apply vocab expansion
     """
@@ -66,9 +65,9 @@ def load_model(embed_map=None):
     f_w2v = theano.function([embedding, x_mask], ctxw2v, name='f_w2v')
 
     # Load word2vec, if applicable
-    if embed_map == None:
-        print('Loading word2vec embeddings...')
-        embed_map = load_googlenews_vectors(path_to_word2vec)
+    # if embed_map == None:
+    #     print('Loading word2vec embeddings...')
+    #     embed_map = load_googlenews_vectors(path_to_word2vec)
 
     # Lookup table using vocab expansion trick
     print('Creating word lookup tables...')
@@ -150,12 +149,12 @@ def preprocess(text):
         X.append(result)
     return X
 
-def load_googlenews_vectors():
-    """
-    load the word2vec GoogleNews vectors
-    """
-    embed_map = word2vec.load_word2vec_format(path_to_word2vec, binary=True)
-    return embed_map
+# def load_googlenews_vectors():
+#     """
+#     load the word2vec GoogleNews vectors
+#     """
+#     embed_map = word2vec.load_word2vec_format(path_to_word2vec, binary=True)
+#     return embed_map
 
 def lookup_table(options, embed_map, worddict, word_idict, f_emb, use_norm=False):
     """

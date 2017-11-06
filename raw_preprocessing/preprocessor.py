@@ -1,3 +1,6 @@
+"""
+This is the parser for the XML dump, which will output JSON.
+"""
 import json
 import os
 import logging
@@ -31,7 +34,8 @@ def iterate_raw_filenames():
         subfolder_content = os.listdir(subfolder_path)
         yield from (os.path.join(subfolder_path, name) for name in subfolder_content if name.endswith(".xml"))
 
-#('user', 'gbwpsweetie7'),
+# EXAMPLE
+# ('user', 'gbwpsweetie7'),
 # ('itemid', '2'),
 # ('subject', 'good morning'),
 # ('event', '<FONT color=#ffccff><FONT size=4><STRONG>good morning yall. whats up? not a lot here jsut woke up an thought i would write. so yeah last night i was talkin to i like a lot an i want to go out with him but i cant. i like bieng sinlge. and he just cant understand that. he is starting to talk to this other gurl and he is starting to be an asshole to me an di kinda dont want that to happen AGAIN! so yeah so if you guys would, would yall leave a comment about what i should do, please? thank you i can really use yer help!!!! love katie</STRONG> </FONT></FONT>'),

@@ -2,14 +2,26 @@ import theano
 from python_skipthought_training.training import vocab, train
 
 theano.config.floatX = 'float32'
-def get_data():
-    X = []
-    with open("/commuter/bookCorpus/books_all.txt", "r") as inf:
-        for line in inf:
-            X.append(line.strip())
 
-dict_loc = "/commuter/skipthoughts/bookCorpus/dict"
-model_loc = "/commuter/skipthoughts/bookCorpus/model"
+fname = "/commuter/inquire_data_root/livejournal_sample/dataset/billion_words.txt"
+dict_loc = "/commuter/inquire_data_root/livejournal_sample/lstm/dict"
+model_loc = "/commuter/inquire_data_root/livejournal_sample/lstm/model"
+
+
+
+# fname = "/commuter/bookCorpus/books_all.txt"
+# dict_loc = "/commuter/skipthoughts/bookCorpus/dict"
+# model_loc = "/commuter/skipthoughts/bookCorpus/model"
+
+
+X = []
+# /commuter/bookCorpus/books_all.txt is 74 004 228 lines
+
+
+with open(fname, "r") as inf:
+    for line in inf:
+        X.append(line.strip())
+
 
 worddict, wordcount = vocab.build_dictionary(X)
 vocab.save_dictionary(worddict, wordcount, dict_loc)

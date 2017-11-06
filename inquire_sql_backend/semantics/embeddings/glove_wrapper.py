@@ -6,21 +6,22 @@ log = logging.getLogger(__name__)
 
 
 class GloveWrapper(object):
-    def __init__(self, path="/commuter/glove-vectors"):
+    def __init__(self, path="/commuter/inquire_data_root/default/model/glove.840B.300d.txt"):
         self.path = path
-        vector_file = os.path.join(path, "glove.840B.300d.txt")
         self.vocab = {}
 
-        log.debug("Reading vocab..")
+        log.debug("Reading glove vectors..")
 
-        binpath = os.path.join(self.path, "saved.pkl")
+        binpath = path + ".saved.pkl"
         if os.path.exists(binpath):
             with open(binpath, "rb") as inf:
                 self.vectors, self.vocab = pickle.load(inf)
+            log.debug("Loaded cached vectors.")
         else:
             self.vectors = []
+            log.debug("Loading raw from file..")
 
-            with open(vector_file, "r") as inf:
+            with open(path, "r") as inf:
                 i = 0
                 for li, line in enumerate(inf):
                     word, raw = line.strip().split(" ", maxsplit=1)

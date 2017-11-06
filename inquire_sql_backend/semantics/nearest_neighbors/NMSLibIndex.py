@@ -53,17 +53,26 @@ class NMSLibIndex(object):
         return self
 
 
-_index = None
+_indexes = {}
 
 INDEXES = {
-    "glove": "/commuter/inquire-nmslib-index/nms_10.0M_livejournal_glove.idx",
-    "lstm": None  # TODO
+    ("default", "livejournal"): "/commuter/inquire_data_root/default/indexes/nms_10.0M_livejournal_default.idx",
+    ("default", "reddit"): "/commuter/inquire_data_root/default/indexes/nms_10.0M_reddit_default.idx",
+    "spacy": None,
+    "lstm_bc": None,
+    "lstm_lj": None,
+    "glove_lj": None,
+    "glove_bc": None,
+
 }
 
 
-def get_nms_index(method="glove"):
-    global _index
-    if _index is None:
-        _index = NMSLibIndex.load(INDEXES[method])
+def get_nms_index(model="default", dataset="livejournal"):
+    key = (model, dataset)
+    if key not in INDEXES:
+        return None
+    global _indexes
+    if key not in _indexes:
+        _indexes[key] = NMSLibIndex.load(INDEXES[key])
 
-    return _index
+    return _indexes[key]
