@@ -114,13 +114,47 @@ def retrieve_sent_context_metadata(post_id, sent_num, window=None, dataset="live
     return final_dict
 
 
+def retrieve_all_sents(dataset="livejournal", limit=None):
+    cur = conns[dataset].cursor("all_sents")
+    cur.itersize = 10000
+    if limit is None:
+        cur.execute(
+            """
+            SELECT
+                ps.post_id,
+                ps.sent_num,
+                ps.sent_text
+            FROM
+                post_sents ps
+            ORDER BY
+                ps.post_id %% 929, ps.post_id;
+            """, ()
+        )
+    else:
+        cur.execute(
+            """
+            SELECT
+                ps.post_id,
+                ps.sent_num,
+                ps.sent_text
+            FROM
+                post_sents ps
+            ORDER BY
+                ps.post_id %% 929, ps.post_id
+            LIMIT
+                %s;
+            """, (limit,)
+        )
+    return cur
+
+
 def retrieve_user_sents(username, dataset="livejournal"):
     cur = conns[dataset].cursor()
     if dataset == "livejournal":
         ext_post_id_name = "lj_post_id"  # TODO this is different for Reddit, and will also be adjusted for LJ
     else:
         ext_post_id_name = "ext_post_id"
-    cur.execute(  # TODO make sure that this coalesce works
+    cur.execute(
         """
         SELECT
             p.{ext_post_id_name},

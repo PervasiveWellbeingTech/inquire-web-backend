@@ -20,10 +20,10 @@ class NMSLibIndex(object):
 
         self.index.addDataPointBatch(data=vectors, ids=ids)
 
-    def query(self, vector, top=100):
-        self.index.setQueryTimeParams({
-            "ef": 2000,
-        })
+    def query(self, vector, top=100, **kwargs):
+        if "ef" not in kwargs:
+            kwargs["ef"] = 2000
+        self.index.setQueryTimeParams(kwargs)
         ids, dists = self.index.knnQuery(vector, k=top)
         metadata = [self._metadata[_id] for _id in ids]
         return metadata, dists
@@ -56,8 +56,11 @@ class NMSLibIndex(object):
 _indexes = {}
 
 INDEXES = {
-    ("default", "livejournal"): "/commuter/inquire_data_root/default/indexes/nms_10.0M_livejournal_default.idx",
-    ("default", "reddit"): "/commuter/inquire_data_root/default/indexes/nms_10.0M_reddit_default.idx",
+    ("default", "livejournal", 0.01): "/commuter/inquire_data_root/default/indexes/nms_10.0M_livejournal_default.idx",
+    ("default", "livejournal", 0.1): "/commuter/inquire_data_root/default/indexes/nms_100.0M_livejournal_default.idx",
+    ("default", "reddit", 0.01): "/commuter/inquire_data_root/default/indexes/nms_1.27M_reddit_default.idx",
+    ("default", "reddit", 0.1): "/commuter/inquire_data_root/default/indexes/nms_10.0M_reddit_default.idx",
+    ("default", "reddit", 1.0): "/commuter/inquire_data_root/default/indexes/nms_allM_reddit_default.idx",
     "spacy": None,
     "lstm_bc": None,
     "lstm_lj": None,
@@ -67,8 +70,8 @@ INDEXES = {
 }
 
 
-def get_nms_index(model="default", dataset="livejournal"):
-    key = (model, dataset)
+def get_nms_index(model="default", dataset="livejournal", percentage=0.01):
+    key = (model, dataset, percentage)
     if key not in INDEXES:
         return None
     global _indexes

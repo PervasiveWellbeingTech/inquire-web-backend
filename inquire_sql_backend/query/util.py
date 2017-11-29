@@ -1,4 +1,9 @@
-from flask import request
+
+letters = list("зсьовфдагтурйпб«эыинямжчеклю»ш")
+
+
+def is_russian(text):
+    return any([l in text for l in letters])  # filter out russian posts
 
 
 def apply_filters(nearest_neighbors, max_words, min_words, filter_words, top):
@@ -31,26 +36,3 @@ def apply_filters(nearest_neighbors, max_words, min_words, filter_words, top):
     return results_to_keep
 
 
-def parse_query_params():
-    min_words = request.args.get("minWords", None)
-    max_words = request.args.get("maxWords", None)
-    filter_words = request.args.get("filter", None)
-    if filter_words:
-        filter_words = [w.strip().lower() for w in filter_words.split(",")]
-    top = int(request.args.get("top"))
-    top = min(top, 1000)
-
-    any_filters = filter_words is not None or min_words is not None or max_words is not None
-    query_string = request.args.get("data")
-
-    model = request.args.get("model", "default")
-    dataset = request.args.get("dataset", "livejournal")
-
-    return any_filters, filter_words, max_words, min_words, query_string, top, model, dataset
-
-
-letters = list("зсьовфдагтурйпб«эыинямжчеклю»ш")
-
-
-def is_russian(text):
-    return any([l in text for l in letters])  # filter out russian posts

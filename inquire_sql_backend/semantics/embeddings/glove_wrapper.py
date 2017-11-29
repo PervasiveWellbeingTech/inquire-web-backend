@@ -19,11 +19,18 @@ class GloveWrapper(object):
             log.debug("Loaded cached vectors.")
         else:
             self.vectors = []
-            log.debug("Loading raw from file..")
+            log.debug("Loading raw from file (%s).." % path)
 
-            with open(path, "r") as inf:
+            with open(path, "rb") as inf:
                 i = 0
+
                 for li, line in enumerate(inf):
+                    try:
+                        line = line.decode("utf-8")
+                    except:
+                        log.error("Skipping: %s" % line)
+                        continue
+                    # print(i)
                     word, raw = line.strip().split(" ", maxsplit=1)
                     raw = raw.split(" ")
                     if len(raw) != 300:

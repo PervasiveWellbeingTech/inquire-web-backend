@@ -6,6 +6,9 @@ import numpy as np
 
 from inquire_sql_backend.semantics.embeddings.vector_models import _get_glove
 from python_skipthought_training.training.tools import load_model, encode
+import logging
+logging.basicConfig(format="%(asctime)s %(levelname)-8s %(name)-18s: %(message)s", level=logging.DEBUG)
+log = logging.getLogger(__name__)
 
 nltk.data.path.append("/commuter/nltk_data")
 
@@ -28,8 +31,8 @@ path_to_model = "/commuter/inquire_data_root/bookCorpus/lstm/model.pkl"
 path_to_dictionary = "/commuter/inquire_data_root/bookCorpus/lstm/dict"
 output_path = '/commuter/inquire_data_root/bookCorpus/lstm/finalized_lstm_glove_bc.pkl'
 
-# SETTINGS FOR BOOKCORPUS
-# glove_model_name = "livejournal_sample"
+# SETTINGS FOR LIVEJOURNAL
+# glove_model_name = "glove_lj"
 # path_to_model = "/commuter/inquire_data_root/livejournal_sample/lstm/model.pkl"
 # path_to_dictionary = "/commuter/inquire_data_root/livejournal_sample/lstm/dict"
 # output_path = '/commuter/inquire_data_root/livejournal_sample/lstm/finalized_lstm_lj_glove.pkl'

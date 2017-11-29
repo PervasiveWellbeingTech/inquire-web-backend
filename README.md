@@ -4,6 +4,7 @@ Use `python run_server.py` to start the server from this directory.
 
 By default, the server is available at all interfaces on port 9000.
 
+Flags for Theano to use GPU for LSTM model: `THEANO_FLAGS='device=gpu,floatX=float32'`
 
 # Train LSTM model
 First, adjust the location paths in train_st_model.py to what you need, then:

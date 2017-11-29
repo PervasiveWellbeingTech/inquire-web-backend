@@ -23,7 +23,8 @@ translator = str.maketrans('', '', string.punctuation)
 
 def clean_sent(sent):
     sent = sent.translate(translator).strip().split()
-    sent = [word for word in sent if word.lower() not in stopwords]
+    # sent = [word for word in sent if word.lower() not in stopwords]
+    sent = [word for word in sent]
     return " ".join(sent)
 
 
