@@ -1,13 +1,14 @@
-# SERVER
+# QUERY SERVER
 
-Use `python start_server.py` to start the server from this directory.
+Use `python run_server.py` to start the server from this directory.
 
-It will serve static files from the `static` folder, `/` will redirect to `index.html`.
+By default, the server is available at all interfaces on port 9000.
 
-The API for now supports epsilon clustering for the graph (which is hosted). We still need to add actual results data on the JS side!
+Flags for Theano to use GPU for LSTM model: `THEANO_FLAGS='device=gpu,floatX=float32'`
 
-By default, the server is available at `localhost:8080`.
-
+# Train LSTM model
+First, adjust the location paths in train_st_model.py to what you need, then:
+`THEANO_FLAGS='device=gpu,floatX=float32' python3 train_st_model.py`
 
 # Best Practices
 

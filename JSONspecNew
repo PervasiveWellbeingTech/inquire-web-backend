@@ -1,0 +1,63 @@
+GET /query
+parameters are the same as before: minWords, maxWords, filter (string of comma separated words), top, data (the actual query)
+responds with e.g.
+{
+	"result_count": 10,
+	"query": "your query string",
+	"query_results": [
+		{
+			sent_text: "this is a sentence", similarity: 0.8, 
+			lj_post_id: 743, sent_num: 2, username: "username", 
+			post_time: "1114875060", url: "http://username.livejournal.com/743.html",
+			mood: null
+		}, ...
+	]
+
+	
+}
+
+
+POST /contexts
+post data should be a json, format:
+{
+	window: 1, // number of +/- sents, or null if you want full posts
+	sents: [
+		[743, 2],  // tuples of post_id, sent_num (resulting from a query, like above)
+		[134, 3],
+		...
+	]
+}
+responds with e.g.
+{
+	"result_count": 10,
+	"query_results": [
+		[
+			{
+				sent_text: "this is a sentence before sent 1", similarity: 0.1, 
+				lj_post_id: 743, sent_num: 1, username: "username", 
+				post_time: "1114875060", url: "http://username.livejournal.com/743.html",
+				mood: null
+			},
+			{
+				sent_text: "this is sent 1", similarity: 0.8, 
+				lj_post_id: 743, sent_num: 2, username: "username", 
+				post_time: "1114875060", url: "http://username.livejournal.com/743.html",
+				mood: null
+			}
+			{
+				sent_text: "this is a sentence after sent 1", similarity: 0.2, 
+				lj_post_id: 743, sent_num: 3, username: "username", 
+				post_time: "1114875060", url: "http://username.livejournal.com/743.html",
+				mood: null
+			}
+		],
+		[
+			{... another sentence ...},
+			{... another sentence ...},
+			...
+		], 
+		...
+	]
+
+	
+}
