@@ -17,7 +17,7 @@ log = logging.getLogger(__name__)
 app = Flask("inquire_sql")
 
 
-def parse_query_params(multiple_data=False, get_index_query_params=False):
+def parse_query_params(multi_data_vals=False, has_index_query_params=False):
     min_words = request.args.get("minWords", None)
     max_words = request.args.get("maxWords", None)
     filter_words = request.args.get("filter", None)
@@ -29,7 +29,7 @@ def parse_query_params(multiple_data=False, get_index_query_params=False):
     percentage = float(request.args.get("percentage", 0.01))
 
     any_filters = filter_words is not None or min_words is not None or max_words is not None
-    if multiple_data:
+    if multi_data_vals:
         query_string = request.args.getlist("data")
     else:
         query_string = request.args.get("data")
@@ -39,7 +39,7 @@ def parse_query_params(multiple_data=False, get_index_query_params=False):
     index_query_params = json.loads(request.args.get("index_query_params", "{}"))
     res = any_filters, filter_words, max_words, min_words, query_string, top, model, dataset, percentage
 
-    if not get_index_query_params:
+    if not has_index_query_params:
         return res
     else:
         return list(res) + [index_query_params]
@@ -79,7 +79,7 @@ def perform_full_query(
 def query():
     print("args: %s" % request.args)
     any_filters, filter_words, max_words, min_words, query_string, top, model, dataset, percentage, index_query_params \
-        = parse_query_params(get_index_query_params=True)
+        = parse_query_params(has_index_query_params=True)
 
     if "query_vector" in request.args:
         v_raw = request.args.get("query_vector").split("|")
@@ -111,7 +111,7 @@ def query():
         if results_to_keep:
             print(results_to_keep[0])
 
-        # TODO re-try with more nns if there are 0 matches
+        # TODO re-try with more nns if there are 0 matches (or too few)
 
     res = {
         "result_count": len(results_to_keep),
@@ -124,7 +124,8 @@ def query():
 @app.route("/query_bruteforce")
 def query_bruteforce():
     print("args: %s" % request.args)
-    any_filters, filter_words, max_words, min_words, query_strings, top, model, dataset, percentage = parse_query_params(multiple_data=True)
+    any_filters, filter_words, max_words, min_words, query_strings, top, model, dataset, percentage = parse_query_params(
+        multi_data_vals=True)
 
     try:
         query_vectors = [vector_embed_sentence(query_string, model=model) for query_string in query_strings]
@@ -148,12 +149,6 @@ def query_bruteforce():
         all_results_to_keep.append(res)
 
     return jsonify(all_results_to_keep)
-
-
-@app.route("/user/<username>")
-def get_user(username):
-    dataset = request.args.get("dataset", "livejournal")
-    return jsonify(retrieve_all_user_posts(username, dataset=dataset))
 
 
 @app.route("/user_query/<username>")
@@ -188,6 +183,13 @@ def query_user(username):
         "query_results": results_to_keep
     }
     return jsonify(res)
+
+
+
+@app.route("/user/<username>")
+def get_user(username):
+    dataset = request.args.get("dataset", "livejournal")
+    return jsonify(retrieve_all_user_posts(username, dataset=dataset))
 
 
 @app.route("/contexts", methods=["POST"])

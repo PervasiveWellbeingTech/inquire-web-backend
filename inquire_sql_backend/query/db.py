@@ -12,7 +12,8 @@ psycopg2.extensions.register_type(DEC2FLOAT)
 
 conns = {
     "livejournal": psycopg2.connect(DB_LIVEJOURNAL_STRING),
-    "reddit": psycopg2.connect(DB_REDDIT_STRING)
+    "reddit": psycopg2.connect(DB_REDDIT_STRING),
+    # TODO: your dataset
 }
 
 

@@ -1,6 +1,8 @@
 import nmslib
 import pickle
 
+from inquire_sql_backend.config import INDEXES_DIRECTORY
+
 
 class NMSLibIndex(object):
     def __init__(self):
@@ -56,17 +58,12 @@ class NMSLibIndex(object):
 _indexes = {}
 
 INDEXES = {
-    ("default", "livejournal", 0.01): "/commuter/inquire_data_root/default/indexes/nms_10.0M_livejournal_default.idx",
-    ("default", "livejournal", 0.1): "/commuter/inquire_data_root/default/indexes/nms_100.0M_livejournal_default.idx",
-    ("default", "reddit", 0.01): "/commuter/inquire_data_root/default/indexes/nms_1.27M_reddit_default.idx",
-    ("default", "reddit", 0.1): "/commuter/inquire_data_root/default/indexes/nms_10.0M_reddit_default.idx",
-    ("default", "reddit", 1.0): "/commuter/inquire_data_root/default/indexes/nms_allM_reddit_default.idx",
-    "spacy": None,
-    "lstm_bc": None,
-    "lstm_lj": None,
-    "glove_lj": None,
-    "glove_bc": None,
-
+    # key format is: (vector_model, dataset_name, fraction_of_data_indexed)
+    ("default", "livejournal", 0.01): "nms_10.0M_livejournal_default.idx",
+    ("default", "livejournal", 0.1): "nms_100.0M_livejournal_default.idx",
+    ("default", "reddit", 0.01): "nms_1.27M_reddit_default.idx",
+    ("default", "reddit", 0.1): "nms_10.0M_reddit_default.idx",
+    ("default", "reddit", 1.0): "nms_allM_reddit_default.idx",
 }
 
 
@@ -76,6 +73,6 @@ def get_nms_index(model="default", dataset="livejournal", percentage=0.01):
         return None
     global _indexes
     if key not in _indexes:
-        _indexes[key] = NMSLibIndex.load(INDEXES[key])
+        _indexes[key] = NMSLibIndex.load(INDEXES_DIRECTORY + INDEXES[key])
 
     return _indexes[key]

@@ -8,6 +8,7 @@ import time
 
 from gensim.utils import grouper
 
+from inquire_sql_backend.config import INDEXES_DIRECTORY
 from inquire_sql_backend.query.util import is_russian
 from inquire_sql_backend.semantics.embeddings.vector_sim import vector_embed_sentence_batch
 from inquire_sql_backend.semantics.embeddings.util import tokenize
@@ -174,30 +175,37 @@ def full_db_sent_count(dataset="livejournal"):
     return found_count
 
 
-# MODELS:
-# default
-# spacy
-# lstm_bc
+# AVAILABLE MODELS:
+# default  # GloVe vectors trained on 840B tokens of commoncrawl data. Usually you'll want to use this!
+# spacy  # SpaCy GloVe vectors. Not used in production but can be useful for local development.
+# lstm_bc  # _bc means BookCorpus, _lj is trained on a ~1B word sample of livejournal
 # lstm_lj
 # glove_lj
 # glove_bc
+
 if __name__ == '__main__':
-    # count = None
+    # ## STEP 1: SPECIFY COUNT - You'll usually want to create indexes of 1%, 10% and 100% of your data, as long as you
+    # do not index more than 100 million sentences (the index will become too large at that point.
+
     count = 100000000  # How many sentences are we indexing? (None for all sents)
     # count = 10000000
     # count = 1270000
+    # count = None  # A count of "None" will select all of your sentences. Don't sure if you have a very large dataset.
 
+    # ## STEP 2: SELECT VECTOR MODEL ##
+    model_name = "default"  # which vector model are we using? (see above for choices) Usually, leave it as "default"
 
-    model_name = "default"  # which vector model are we using? (see above)
-    dataset = "livejournal"  # what database are we getting sents from? (reddit or livejournal)
+    # ## STEP 3: SELECT A DATABASE ##
+    # what database are we getting sents from? (reddit, livejournal, your custom dataset name)
+    dataset = "livejournal"  # must match a key specified in inquire_sql_backend.query.db.conns
     # dataset = "reddit"
-    # dataset = "livejournal"
+
+    # ## DON'T CONFIGURE BELOW THIS LINE ##
     dataset_size_string = "all" if count is None else str(count/1000000)
-
-    fname = "/commuter/inquire_data_root/default/indexes/nms_%sM_%s_%s.idx" % (dataset_size_string, dataset, model_name)
-
-    # fname = "/commuter/inquire_data_root/<vector_train_dataset>/indexes/nms_%s_livejournal_%s.idx" % ("by_userids", model)
-    # fname = ""/commuter/inquire_data_root/<vector_train_dataset>/indexes/nms_%s_livejournal_%s.idx" % ("all", model)
+    index_fname = "nms_%sM_%s_%s.idx" % (dataset_size_string, dataset, model_name)
+    fname = INDEXES_DIRECTORY + index_fname
 
     populate_nmslib_index(fname, count=count, dataset=dataset)
-    log.debug("Wrote saved index to %s" % fname)
+    log.debug("Index written to %s" % fname)
+    log.debug("Index file name is: '%s'" % index_fname)
+    log.debug("Add this file name to 'inquire_sql_backend.semantics.nearest_neighbors.NMSLibIndex.INDEXES' to use it.")

@@ -18,6 +18,7 @@ X = []
 # /commuter/bookCorpus/books_all.txt is 74 004 228 lines
 
 
+
 with open(fname, "r") as inf:
     for line in inf:
         X.append(line.strip())

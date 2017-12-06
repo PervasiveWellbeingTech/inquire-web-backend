@@ -1,5 +1,5 @@
 """
-This is the parser for the XML dump, which will output JSON.
+This is the actual parser for the XML dump, which will output JSON.
 """
 import json
 import os
@@ -21,6 +21,7 @@ logging.basicConfig(
 n_cpus = multiprocessing.cpu_count()
 
 log = logging.getLogger(__name__)
+# This specifies where the raw XML files are found
 DATA_ROOT = "/commuter/raw_data_livejournal/data"
 
 current_file, current_post_num = 0, 0
@@ -113,7 +114,7 @@ def handle_filen(filename):
             log.debug("filebuffer len is %s " % len(file_buf))
     return file_buf
 
-
+# this is a helper class for getting rid of leftover HTML / XML tags (i.e. user generated formatting within LJ posts)
 class MLStripper(HTMLParser):
     def __init__(self):
         super().__init__()
@@ -121,10 +122,13 @@ class MLStripper(HTMLParser):
         self.strict = False
         self.convert_charrefs= True
         self.fed = []
+
     def handle_data(self, d):
         self.fed.append(d)
+
     def get_data(self):
         return ''.join(self.fed)
+
     def error(self, message):
         log.debug(message)
         raise RuntimeWarning("Error occurred in HTML parser: %s" % message)

@@ -1,4 +1,6 @@
 # this creates a simple plain text format that we can use for training vector models
+# takes as input the json we generated from the raw XML.
+# this is not a core part of Inquire, we only use this data to train e.g. glove / lstm models for experiments
 import time
 import json
 import spacy
@@ -9,6 +11,7 @@ start = time.time()
 
 p = pool.Pool(processes=14)
 tok = TreebankWordTokenizer()
+
 
 def get_sents():
     with open("/commuter/full_lj_parse_philipp/sents/all_posts_sents.json.txt", "r") as inf:

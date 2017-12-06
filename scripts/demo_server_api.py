@@ -27,7 +27,7 @@ dataset = "livejournal"
 
 percentage = 0.01  # default for LJ
 # percentage = 0.1
-top = 100
+top = 5
 
 model = "default"
 # model = "lstm_bc"
@@ -37,7 +37,7 @@ model = "default"
 
 while True:
     inp = input(
-        "Enter 1 query, 2 to get contexts, 3 to query a user, 4 to get a user's posts, 5 for a brute force query (takes a long time!), 6 to switch DBs (current is %s)"
+        "Enter 1 to query, 2 to get contexts, 3 to query a user, 4 to get a user's posts, 5 for a brute force query (takes a long time!), 6 to switch DBs (current is %s)"
         % dataset
     )
 

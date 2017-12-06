@@ -1,10 +1,12 @@
+# This runs sentence tokenization on the supplied input json file (each line is one JSON document with a "text" attr)
 import itertools
 import spacy
 import json
 import logging
 import multiprocessing
-n_threads = int(multiprocessing.cpu_count() / 2.)
 import sys
+
+n_threads = int(multiprocessing.cpu_count() / 2.)
 
 logging.basicConfig(
         format="%(asctime)s %(levelname)-8s %(name)-18s: %(message)s",
@@ -13,12 +15,11 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 nlp = spacy.load("en", entity=False)
-DATA_ROOT = "/commuter/raw_data_livejournal/data"
 
 CHUNKSIZE = 50000
 
 
-def handle_documents(document_dict_iterator, sent_counts=False):
+def sent_tokenize_documents(document_dict_iterator, yield_sent_counts=False):
     """
     Handles a stream of documents (dicts) and sentence tokenize the "text" field using spacy.
     """
@@ -31,7 +32,7 @@ def handle_documents(document_dict_iterator, sent_counts=False):
             log.debug("Processed %s documents.." % i)
         del doc["text"]
         doc["sents"] = [str(sent) for sent in processed.sents]
-        if sent_counts:
+        if yield_sent_counts:
             yield doc, len(doc["sents"])
         else:
             yield doc
@@ -47,14 +48,13 @@ def run_full(input_file):
             # )
             iterator = map(json.loads, inf)
             with open("/commuter/full_lj_parse_philipp/sents/" + input_file, "w") as outf:
-                for doc, c in handle_documents(iterator, sent_counts=True):
+                for doc, c in sent_tokenize_documents(iterator, yield_sent_counts=True):
                     outf.write(json.dumps(doc))
                     outf.write("\n")
                     count += c
         log.debug("Total sent count: %s" % count)
 
 if __name__ == '__main__':
-
-
     run_full(sys.argv[1])
+
 

@@ -1,13 +1,11 @@
-from inquire_sql_backend.query.db import conns
-from raw_preprocessing.sentence_tokenize import handle_documents
-from raw_preprocessing.populate_sql import insert_post, insert_sent, insert_user, insert_posts_misc
-import sqlite3
 import logging
-import time
-log = logging.getLogger(__name__)
+import sqlite3
 
-reddit_conn = sqlite3.connect("/commuter/mallickd/database.sqlite")
-inquire_conn = conns["reddit"]
+from inquire_sql_backend.data_import import write_doc_stream_to_db, write_users_to_db
+from inquire_sql_backend.query.db import conns
+from raw_lj_preprocessing.sentence_tokenize import sent_tokenize_documents
+
+log = logging.getLogger(__name__)
 
 
 reddit_col_names = [
@@ -52,31 +50,21 @@ meta_cols_only = [
     "controversiality",
     "parent_id"
 ]
-#   CREATE TABLE users (
-#   	USERID		INT		PRIMARY KEY,
-#   	USERNAME	TEXT	UNIQUE
-#   );
-#   CREATE TABLE posts (
-#       POST_ID     INT     PRIMARY KEY,
-#   	EXT_POST_ID	TEXT    NOT NULL,
-#   	USERID		INT     NOT NULL,
-#   	POST_TIME	INT		NOT NULL,
-#   	UNIQUE(EXT_POST_ID, USERID)
-#   );
-#   CREATE TABLE post_sents (
-#   	POST_ID		INT,
-#   	SENT_NUM	INT,
-#   	SENT_TEXT	TEXT	NOT NULL,
-#   	PRIMARY KEY(POST_ID, SENT_NUM)
-#   );
-#
-#   CREATE TABLE posts_misc (
-#       POST_ID     INT     PRIMARY KEY,
-#       DATA        JSONB
-#   )
 
 
 def stream_reddit_as_docs(users_dict):
+    # This is the main reddit wrapper, which you should roughly imitate when you implement a new data source
+    # Look at the dict/json format we generate here - one "post" (not necessarily one sentence) from your data source
+    # should be represented in this format.
+    #
+    # Output from this method will be passed to the "sent_tokenize_documents" method
+    #
+    # This "users_dict" parameter is a dictionary that will be updated to track username -> user_id mappings
+    # If users do not occur in an ordered way in your dataset, this type of approach is necessary to keep track of new
+    # and existing users.
+
+    reddit_conn = sqlite3.connect("/commuter/mallickd/database.sqlite")  # SQLite to read the raw Reddit input
+
     post_id = 0
     res = reddit_conn.execute("SELECT * FROM May2015;")
 
@@ -96,54 +84,15 @@ def stream_reddit_as_docs(users_dict):
         yield as_dict_translated
 
 
-def write_doc_stream_to_db(stream, skip_to=None):
-    cur = inquire_conn.cursor()
-    if skip_to is None:
-        skip_to = 0
-    inserted_posts = 0
-    inserted_sents = 0
-
-    start = time.time()
-    for post_id, document in enumerate(stream):
-        if post_id % 10000 == 0:
-            inquire_conn.commit()
-            log.debug(
-                "Inserted %s posts in %s seconds far (%s sentences) %s" % (
-                    inserted_posts,
-                    time.time() - start,
-                    inserted_sents,
-                    "" if skip_to is None else ("(skipped %s)" % skip_to)
-                )
-            )
-
-        if post_id < skip_to:
-            continue
-
-        insert_post(cur, post_id, document["ext_post_id"], document["userid"], document["post_time"])
-        insert_posts_misc(cur, post_id, document["meta"])
-        inserted_posts += 1
-        for sent_num, sent in enumerate(document["sents"]):
-            insert_sent(cur, post_id, sent, sent_num)
-            inserted_sents += 1
-
-    inquire_conn.commit()
-    log.debug("Done - Inserted %s posts in %s seconds (%s sentences) (~75m posts total%s)" % (
-        inserted_posts, time.time() - start, inserted_sents, "" if skip_to is None else (" skipped %s" % skip_to)))
-
-
-def write_users_to_db(users_dict):
-    cur = inquire_conn.cursor()
-    for i, (username, userid) in enumerate(users_dict.items()):
-        if i % 1000 == 0:
-            inquire_conn.commit()
-            log.debug("Inserted %s users.." % i)
-        insert_user(cur, userid, username)
-    log.debug("Inserted %s users in total." % i)
-    inquire_conn.commit()
-
-
 def run_full_import():
+    # The Postgres database we will import the data into -> make sure you create and choose a new database if you're
+    # importing a new dataset.
+    inquire_conn = conns["reddit"]
     users_seen = dict()
-    sent_tokenized_reddit_stream = handle_documents(stream_reddit_as_docs(users_seen))
-    write_doc_stream_to_db(sent_tokenized_reddit_stream)
-    write_users_to_db(users_seen)
+
+    # Replace this with your custom stream
+    document_stream = stream_reddit_as_docs(users_seen)
+
+    sent_tokenized_reddit_stream = sent_tokenize_documents(document_stream)
+    write_doc_stream_to_db(inquire_conn, sent_tokenized_reddit_stream)
+    write_users_to_db(inquire_conn, users_seen)

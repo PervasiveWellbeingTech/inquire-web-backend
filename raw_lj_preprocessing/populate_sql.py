@@ -1,8 +1,11 @@
 import json
 import logging
-import psycopg2
 import time
+
+import psycopg2
 from dateutil import parser
+
+from inquire_sql_backend.data_import import insert_sent, insert_post, insert_user
 
 conn = psycopg2.connect(dbname="inquire_newparse", user="dowling")
 
@@ -62,33 +65,7 @@ def run_full(skip_to=None):
     conn.close()
 
 
-def insert_sent(cur, post_id, sent, sent_id):
-    cur.execute(
-        "INSERT INTO post_sents (post_id, sent_num, sent_text) VALUES (%s, %s, %s) ON CONFLICT DO NOTHING;",
-        (post_id, sent_id, sent)
-    )
-
-
-def insert_post(cur, post_id, ext_post_id, userid, timestamp):
-    cur.execute(
-        # TODO this says ext_post_id, which will not work if that field is still called lj_post_id (current prod system)
-        # We will need to update that table.
-        "INSERT INTO posts (post_id, ext_post_id, userid, post_time) VALUES (%s, %s, %s, %s) ON CONFLICT DO NOTHING;",
-        (post_id, ext_post_id, userid, timestamp)
-    )
-
-
-def insert_user(cur, userid, username):
-    cur.execute("INSERT INTO users (userid, username) VALUES (%s, %s) ON CONFLICT DO NOTHING;", (userid, username))
-
-
-def insert_posts_misc(cur, post_id, json_data):
-    cur.execute(
-        "INSERT INTO posts_misc (post_id, data) VALUES (%s, %s) ON CONFLICT DO NOTHING;",
-        (post_id, json.dumps(json_data))
-    )
-
-
 if __name__ == '__main__':
-    run_full(skip_to=(18130000 + 56879862))
+    # run_full(skip_to=(18130000 + 56879862))  # ignore this
+    run_full()
 
