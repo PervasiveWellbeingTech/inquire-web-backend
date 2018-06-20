@@ -5,7 +5,7 @@ import time
 import numpy as np
 from flask import Flask, request, jsonify
 
-from inquire_sql_backend.query.db import retrieve_sent_metadata, retrieve_sent_context_metadata
+from inquire_sql_backend.query.db import retrieve_sent_metadata, retrieve_sent_metadata_many, retrieve_sent_context_metadata
 from inquire_sql_backend.query.user_query import query_user_sents, retrieve_all_user_posts, query_brute_force
 from inquire_sql_backend.query.util import apply_filters
 from inquire_sql_backend.semantics.embeddings.vector_sim import vector_embed_sentence
@@ -57,9 +57,10 @@ def perform_full_query(
     if index is None:
         raise ValueError("No index found for model %s and dataset %s" % (model, dataset))
 
-    ann_query_results = index.query(query_vector, nns, *index_query_params)
+    ann_query_results = index.query(query_vector, nns, **index_query_params)
     result_ids = [(sent_pkey, 1. - dist) for (sent_pkey, dist) in zip(*ann_query_results)]
     result_ids = sorted(result_ids, key=lambda kv: -kv[1])
+
     nms_res, dists = zip(*result_ids)
 
     # Retrieve full data from DB
@@ -67,8 +68,10 @@ def perform_full_query(
     log.debug("ANN search returned %s items in %s seconds, now running db queries for content.." % (len(nms_res), t1))
 
     nearest_neighbors_full = []
-    for (post_id, sent_num), dist in zip(nms_res, dists):
-        res_dict = retrieve_sent_metadata(post_id, sent_num, dataset=dataset)
+    res_dicts = retrieve_sent_metadata_many(nms_res, dataset=dataset)
+    # for (post_id, sent_num), dist in zip(nms_res, dists):
+    for res_dict, dist in zip(res_dicts, dists):
+        # res_dict = retrieve_sent_metadata(post_id, sent_num, dataset=dataset)
         res_dict["similarity"] = float(str(dist)[:4])
         nearest_neighbors_full.append(res_dict)
 

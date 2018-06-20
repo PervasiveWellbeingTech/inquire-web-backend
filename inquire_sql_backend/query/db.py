@@ -49,6 +49,40 @@ def retrieve_sent_metadata(post_id, sent_num, dataset="livejournal"):
     return as_dict
 
 
+def retrieve_sent_metadata_many(post_ids_sent_nums, dataset="livejournal"):
+    cur = conns[dataset].cursor()
+    log.debug("Getting %s sents from %s" % (len(post_ids_sent_nums), dataset))
+    if dataset == "livejournal":
+        ext_post_id_name = "lj_post_id"  # TODO this is different for Reddit, and will also be adjusted for LJ
+    else:
+        ext_post_id_name = "ext_post_id"
+    cur.execute(
+        """
+        SELECT
+            p.{ext_post_id_name},
+            p.post_id,
+            s.sent_num,
+            s.sent_text,
+            u.username,
+            p.post_time,
+            pm.data
+        FROM
+            users u, post_sents s,
+            posts p left join posts_misc pm on p.post_id = pm.post_id
+        WHERE
+            s.post_id = p.post_id and
+            p.userid = u.userid and
+            (s.post_id, s.sent_num) in %s;
+        """.format(ext_post_id_name=ext_post_id_name), (tuple(post_ids_sent_nums),))
+    rows = cur.fetchall()
+
+    parsed_rows = [parse_row(dataset, row, fill_url=True) for row in rows]
+    as_dicts = {(row["post_id"], row["sent_num"]): row for row in parsed_rows}
+    ordered = [as_dicts[key] for key in post_ids_sent_nums]
+    # as_dict = dict(zip(["lj_post_id", "post_id", "sent_num", "sent_text", "username", "post_time"], row))
+    return ordered
+
+
 def retrieve_sent_context_metadata(post_id, sent_num, window=None, dataset="livejournal"):
     cur = conns[dataset].cursor()
     if dataset == "livejournal":
