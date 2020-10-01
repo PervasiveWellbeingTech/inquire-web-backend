@@ -6,7 +6,14 @@ from multiprocessing import pool, cpu_count
 import psycopg2
 import time
 
-from gensim.utils import grouper
+#from gensim.utils import grouper
+
+def grouper(lst, chunksize):
+    """Yield successive n-sized chunks from lst."""
+    for i in range(0, len(lst), chunksize):
+        yield lst[i:i + chunksize]
+
+
 
 from inquire_sql_backend.config import INDEXES_DIRECTORY
 from inquire_sql_backend.query.util import is_russian
@@ -18,7 +25,8 @@ from inquire_sql_backend.query.db import conns
 logging.basicConfig(
     format="%(asctime)s %(levelname)-8s %(name)-18s: %(message)s",
     level=logging.DEBUG
-)
+    )
+logging.basicConfig(level=logging.NOTSET)
 log = logging.getLogger(__name__)
 
 DEC2FLOAT = psycopg2.extensions.new_type(
@@ -40,6 +48,7 @@ def parallel_tokenize(texts_it, p, chunksize=100000):
 
 def vectorize_parallel(tokens_buffer, tokenized, model, p):
     batches = grouper(tokens_buffer, chunksize=2000)
+    print("Grouper has finished grouping")
     vectors_batched = p.map(
         partial(vector_embed_sentence_batch, tokenized=tokenized, model=model), batches
     )
@@ -50,8 +59,8 @@ def vectorize_parallel(tokens_buffer, tokenized, model, p):
 def vectorize_buffer(buf, tokenized, model, p):
     buf_tokens, metadata = zip(*buf)
     # vectors = vector_embed_sentence_batch(buf_tokens, tokenized=do_tokenization, model=model)
-    vectors = vectorize_parallel(buf_tokens, tokenized, model, p)
-    # vectors = vector_embed_sentence_batch(buf_tokens, tokenized=tokenized, model=model)
+    #vectors = vectorize_parallel(buf_tokens, tokenized, model, p)
+    vectors = vector_embed_sentence_batch(buf_tokens, tokenized=tokenized, model=model)
     vecs_metas = [(vec, meta) for vec, meta in zip(vectors, metadata) if vec is not None]
     vectors, metadata = zip(*vecs_metas)
     return vectors, metadata
@@ -59,10 +68,10 @@ def vectorize_buffer(buf, tokenized, model, p):
 
 def populate_nmslib_index(fname, count=None, userids=None, model="default", dataset="livejournal", do_tokenization=True):
     index = NMSLibIndex()
-    chunksize = 100000
+    chunksize = 100 #00000
 
-    p = pool.Pool(processes=cpu_count())
-    p2 = pool.Pool(processes=8)  # this is just to make vectorization a bit faster (each process loads the vector model)
+    p = pool.Pool(processes=1)
+    p2 = pool.Pool(processes=1)  # this is just to make vectorization a bit faster (each process loads the vector model)
 
     filtered = iterate_sents_from_db(count=count, userids=userids, dataset=dataset)
     log.debug("Populating index..")
@@ -78,13 +87,16 @@ def populate_nmslib_index(fname, count=None, userids=None, model="default", data
         tokens_it = texts
     buf = []
     inserted = 0
-
-    # chunksize = 100
+    #a = [x[0] for x in zip(texts)]
+    #print(vector_embed_sentence_batch(a, tokenized=False, model=model))
+    chunksize = 10000
     for idx, ((post_id, sent_num, sent_original), tokens) in enumerate(zip(db_cursor, tokens_it)):
-        # print("%s - %s" % (sent_original, tokens))  # This works
+        #print("%s - %s" % (sent_original, tokens))  # This works
+        #print(buf)
         if len(buf) % chunksize == 0 and len(buf):
+            #print("In the first loop")
             vectors, metadata = vectorize_buffer(buf, tokenized=do_tokenization, model=model, p=p2)
-
+            print("Added %s items.." % idx)
             index.add_data(vectors=vectors, metadata=metadata)
             inserted += len(vectors)
             buf = []
@@ -92,8 +104,10 @@ def populate_nmslib_index(fname, count=None, userids=None, model="default", data
 
         buf.append((tokens, (post_id, sent_num)))
 
-    if buf:
+    if False:
+        print("In the second loop")
         vectors, metadata = vectorize_buffer(buf, do_tokenization, model, p2)
+        print("Entered here")
         index.add_data(vectors=vectors, metadata=metadata)
         inserted += len(vectors)
 
@@ -107,7 +121,6 @@ def populate_nmslib_index(fname, count=None, userids=None, model="default", data
     log.debug("Index build for %s sentences took %s seconds. Now saving index.." % (inserted, took))
     index.save(fname)
     log.debug("Index saved.")
-
 
 def iterate_sents_from_db(count=None, userids=None, dataset="livejournal"):
     tmp_cur = conns[dataset].cursor("a_tmp_cur")
@@ -187,25 +200,26 @@ if __name__ == '__main__':
     # ## STEP 1: SPECIFY COUNT - You'll usually want to create indexes of 1%, 10% and 100% of your data, as long as you
     # do not index more than 100 million sentences (the index will become too large at that point.
 
-    count = 100000000  # How many sentences are we indexing? (None for all sents)
-    # count = 10000000
+    #count = 100000000  # How many sentences are we indexing? (None for all sents)
+    #count = 10000000
+    count = 10000000
     # count = 1270000
     # count = None  # A count of "None" will select all of your sentences. Don't sure if you have a very large dataset.
 
     # ## STEP 2: SELECT VECTOR MODEL ##
-    model_name = "default"  # which vector model are we using? (see above for choices) Usually, leave it as "default"
+    model_name = "bert"  # which vector model are we using? (see above for choices) Usually, leave it as "default"
 
     # ## STEP 3: SELECT A DATABASE ##
     # what database are we getting sents from? (reddit, livejournal, your custom dataset name)
-    dataset = "livejournal"  # must match a key specified in inquire_sql_backend.query.db.conns
-    # dataset = "reddit"
+    #dataset = "livejournal"  # must match a key specified in inquire_sql_backend.query.db.conns
+    dataset = "reddit"
 
     # ## DON'T CONFIGURE BELOW THIS LINE ##
     dataset_size_string = "all" if count is None else str(count/1000000)
     index_fname = "nms_%sM_%s_%s.idx" % (dataset_size_string, dataset, model_name)
     fname = INDEXES_DIRECTORY + index_fname
 
-    populate_nmslib_index(fname, count=count, dataset=dataset)
+    populate_nmslib_index(fname, count=count, dataset=dataset,do_tokenization=False,model=model_name)
     log.debug("Index written to %s" % fname)
     log.debug("Index file name is: '%s'" % index_fname)
     log.debug("Add this file name to 'inquire_sql_backend.semantics.nearest_neighbors.NMSLibIndex.INDEXES' to use it.")

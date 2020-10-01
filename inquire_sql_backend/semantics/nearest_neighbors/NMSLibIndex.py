@@ -6,7 +6,7 @@ from inquire_sql_backend.config import INDEXES_DIRECTORY
 
 class NMSLibIndex(object):
     def __init__(self):
-        self.index = nmslib.init()
+        self.index = nmslib.init(method='hnsw', space='cosinesimil', data_type=nmslib.DataType.DENSE_VECTOR)
         self._id_counter = 0
         self._metadata = {}
 
@@ -64,6 +64,7 @@ INDEXES = {
     ("default", "reddit", 0.01): "nms_1.27M_reddit_default.idx",
     ("default", "reddit", 0.1): "nms_10.0M_reddit_default.idx",
     ("default", "reddit", 1.0): "nms_allM_reddit_default.idx",
+    ("bert", "livejournal", 0.01): "nms_10.0M_livejournal_bert.idx"
 }
 
 

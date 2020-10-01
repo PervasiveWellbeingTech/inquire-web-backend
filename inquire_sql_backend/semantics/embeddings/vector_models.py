@@ -2,6 +2,8 @@ from functools import partial
 
 # from gensim.models.wrappers.fasttext import FastText
 import numpy as np
+from sentence_transformers import SentenceTransformer
+
 from inquire_sql_backend.semantics.embeddings.glove_wrapper import GloveWrapper
 from inquire_sql_backend.semantics.embeddings.util import tokenize, stopwords
 
@@ -29,6 +31,9 @@ _nlp = {}
 # _fasttext = None
 _glove_wrapped = {}
 _lstm_model = {}
+
+bert_model = SentenceTransformer('bert-base-nli-mean-tokens',device="cpu")
+
 
 _encode = None  # just to make the theano imports optional
 
@@ -157,6 +162,28 @@ def vector_embed_sentence_lstm(sentences, model_name, batch=False, tokenized=Fal
 #         return None
 #     return np.array(vecs).mean(0)
 
+def vector_embed_sentence_bert(sentences, model_name, batch=False, tokenized=False):
+    global bert_model
+    #print("Batch : "+str(batch))
+    # print(sentences)
+    if not batch:
+        sentences = [sentences]
+
+    if tokenized:
+        # special case for LSTM: we need to undo the tokenization
+        if not warned:
+            log.warn("Don't pass tokenized data to BERT ! Has its own tokenization rules.")
+            warned = True
+        #sentences = [" ".join(sent) for sent in sentences]
+
+    sentence_embeddings = bert_model.encode(sentences)
+
+    res = sentence_embeddings #[embedding for sentence, embedding in zip(sentences, sentence_embeddings)]
+    #print(res)
+    if batch:
+        #print(np.array(res).shape)
+        return res
+    return res[0]
 
 # THIS IS THE CENTRAL LIST OF ALL MODELS
 
@@ -168,4 +195,5 @@ VECTOR_EMBEDDERS = {
     "lstm_lj": partial(vector_embed_sentence_lstm, model_name="lstm_lj"),
     "glove_lj": partial(vector_embed_sentence_glove, model_name="glove_lj"),
     "glove_bc": partial(vector_embed_sentence_glove, model_name="glove_bc"),
+    "bert": partial(vector_embed_sentence_bert, model_name="bert")
 }
