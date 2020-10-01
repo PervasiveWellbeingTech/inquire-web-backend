@@ -1,4 +1,14 @@
-# QUERY SERVER
+# Inquire Backend Flask Server
+
+# 1. To deploy:
+
+Create a python3.7 venv (see online tutorials) recommended name inquire_venv
+- Activate the venv by doing: 
+    > source "venv_name"/bin/activate
+- install all the required packages by navigating into the popbots folder and running 
+    > pip3 install -r pip_requirements.txt
+
+# 2. To run the Flask server
 
 Use `python run_server.py` to start the server from this directory.
 
